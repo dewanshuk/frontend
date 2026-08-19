@@ -1,0 +1,9 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="play-circle">
+<foreignObject x="-5.33301" y="-5.33398" width="90.6667" height="90.6667"><div xmlns="http://www.w3.org/1999/xhtml" style="backdrop-filter:blur(6px);clip-path:url(#bgblur_0_0_167_clip_path);height:100%;width:100%"></div></foreignObject><path id="Vector" data-figma-bg-blur-radius="12" d="M40.0003 73.3327C58.4098 73.3327 73.3337 58.4088 73.3337 39.9993C73.3337 21.5899 58.4098 6.66602 40.0003 6.66602C21.5908 6.66602 6.66699 21.5899 6.66699 39.9993C6.66699 58.4088 21.5908 73.3327 40.0003 73.3327Z" fill="white" fill-opacity="0.25"/>
+<path id="Vector_2" d="M30 27.5791C30 26.0145 31.7157 25.0558 33.0482 25.8758L53.2321 38.2967C54.5012 39.0777 54.5012 40.9223 53.2321 41.7033L33.0482 54.1242C31.7157 54.9442 30 53.9855 30 52.4209V27.5791Z" fill="white"/>
+</g>
+<defs>
+<clipPath id="bgblur_0_0_167_clip_path" transform="translate(5.33301 5.33398)"><path d="M40.0003 73.3327C58.4098 73.3327 73.3337 58.4088 73.3337 39.9993C73.3337 21.5899 58.4098 6.66602 40.0003 6.66602C21.5908 6.66602 6.66699 21.5899 6.66699 39.9993C6.66699 58.4088 21.5908 73.3327 40.0003 73.3327Z"/>
+</clipPath></defs>
+</svg>
