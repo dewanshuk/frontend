@@ -1375,12 +1375,12 @@ export default function LandingPage2() {
           />
 
           {/* Pillars tighter; Knowledge Hub narrower so Newly Added can show titles. */}
-          <div className="mt-20 grid w-full min-w-0 grid-cols-[1.7fr_0.8fr_1.3fr] items-start gap-6">
+          <div className="mt-20 grid w-full min-w-0 grid-cols-[1.4fr_0.65fr_1.5fr] items-start gap-6">
             <div className="min-w-0">
               <h2 className="text-[40px] font-extrabold leading-none" style={{ color: MARUTI_BLUE }}>
                 Compliance Pillars
               </h2>
-              <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-14">
+              <div className="mt-8 grid grid-cols-2 gap-x-1 gap-y-14">
                 <TooltipProvider delayDuration={120}>
                   {COMPLIANCE_PILLARS.map((pillar) => (
                     <PillarCircle
