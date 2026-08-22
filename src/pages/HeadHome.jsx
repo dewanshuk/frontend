@@ -31,11 +31,14 @@ import {
   getDueForMeData,
   getHeadKpiData,
   getRecentActivity,
+  getUserDeclarationStatus,
   // getWhatsNew,
 } from "@/api/homeApi";
 import { buildComplianceActivityPath } from "@/utils/recentActivityUtils";
 import { getDueItemTarget } from "@/utils/dueForMeUtils";
+import { resolveAnnualDeclarationFromStatus } from "@/utils/annualDeclarationUtils";
 import { buildKpiCategories } from "@/utils/headKpiUtils";
+import CenterToast from "@/components/shared/CenterToast";
 import { useAuthNavigation } from "@/context/AuthNavigationContext";
 import { useDisplayName } from "@/lib/UserContext";
 import {
@@ -100,6 +103,8 @@ export default function HeadHome({ user, withChrome = true }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [overdueOpen, setOverdueOpen] = useState(true);
   const [dueSoonOpen, setDueSoonOpen] = useState(true);
+  const [annualActionLoading, setAnnualActionLoading] = useState(false);
+  const [toast, setToast] = useState({ open: false, variant: "success", message: "" });
   // ---- HIDDEN (homepage duplicate): What's New ----
   // const [newlyAdded, setNewlyAdded] = useState([]);
   const [overdueItems, setOverdueItems] = useState([]);
@@ -122,6 +127,33 @@ export default function HeadHome({ user, withChrome = true }) {
 
   const navigateToLanding = (path) => {
     navigateToApp(toLandingPath(path) || path);
+  };
+
+  const openAnnualDeclaration = async () => {
+    if (annualActionLoading) return;
+    setAnnualActionLoading(true);
+    try {
+      const status = await getUserDeclarationStatus();
+      const result = resolveAnnualDeclarationFromStatus(status);
+      if (!result.ok) {
+        setToast({
+          open: true,
+          variant: "warning",
+          message: result.message,
+        });
+        return;
+      }
+      navigateToLanding(result.path);
+    } catch (error) {
+      setToast({
+        open: true,
+        variant: "error",
+        message:
+          error?.message || "Unable to load annual declaration status. Please try again.",
+      });
+    } finally {
+      setAnnualActionLoading(false);
+    }
   };
 
   const openDueItem = (item) => {
@@ -239,13 +271,22 @@ export default function HeadHome({ user, withChrome = true }) {
       );
     }
 
+    const handleClick = () => {
+      if (action.action === "annual") {
+        openAnnualDeclaration();
+        return;
+      }
+      if (action.to) navigateToApp(toLandingPath(action.to) || action.to);
+    };
+
     return (
       <button
         key={key}
         type="button"
         className={className}
         style={style}
-        onClick={() => action.to && navigateToApp(toLandingPath(action.to) || action.to)}
+        disabled={action.action === "annual" && annualActionLoading}
+        onClick={handleClick}
       >
         {content}
       </button>
@@ -510,11 +551,29 @@ export default function HeadHome({ user, withChrome = true }) {
     </LandingScaledContent>
   );
 
-  if (!withChrome) return content;
+  if (!withChrome) {
+    return (
+      <>
+        {content}
+        <CenterToast
+          open={toast.open}
+          variant={toast.variant}
+          message={toast.message}
+          onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+        />
+      </>
+    );
+  }
 
   return (
     <LandingPageLayout landingRoutes insetContent={false}>
       {content}
+      <CenterToast
+        open={toast.open}
+        variant={toast.variant}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+      />
     </LandingPageLayout>
   );
 }

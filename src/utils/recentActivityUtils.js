@@ -1,3 +1,5 @@
+import { buildComplianceItemUrl } from "./complianceUrlUtils"
+
 const firstNonEmpty = (...values) =>
   values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
 
@@ -32,16 +34,24 @@ export const getActivitySubType = (activity) =>
  * Build a Compliance Helpdesk path that deep-links straight into the respond
  * modal of a single activity. Falls back to the plain listing when the payload
  * carries no usable id.
+ *
+ * Auto-determines mode based on activity status (completed = view, else = respond).
  */
 export const buildComplianceActivityPath = (activity, basePath = "/compliance") => {
-  const requestId = getActivityRequestId(activity);
-  if (!requestId) return basePath;
+  const requestId = getActivityRequestId(activity)
+  if (!requestId) return basePath
 
-  const params = new URLSearchParams({ requestId });
-  const type = getActivityType(activity);
-  if (type) params.set("type", type);
-  const subType = getActivitySubType(activity);
-  if (subType) params.set("subType", subType);
+  const type = getActivityType(activity)
+  const subType = getActivitySubType(activity)
 
-  return `${basePath}?${params.toString()}`;
-};
+  return buildComplianceItemUrl(
+    {
+      requestId,
+      type,
+      subType,
+      status: activity?.status,
+      overallStatus: activity?.overall_status || activity?.overallStatus,
+    },
+    { basePath }
+  )
+}

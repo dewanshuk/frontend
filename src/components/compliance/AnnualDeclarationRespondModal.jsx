@@ -23,6 +23,7 @@ import {
   getAnnualDeclarationResponses,
   saveAnnualDeclaration,
 } from "@/api/complianceApi"
+import { normalizeAnnualDeclarationType } from "@/utils/annualDeclarationUtils"
 import Loader from "@/atoms/loader"
 
 const createViolationRow = (displayId = "01") => ({
@@ -57,13 +58,6 @@ const getFinancialYearEndedLabel = (financialYear) => {
   const now = new Date()
   const year = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1
   return `March ${year}`
-}
-
-const isDraftRequest = (request) => {
-  const candidates = [request?.responseStatus, request?.overallStatus, request?.status]
-  return candidates.some((value) =>
-    String(value ?? "").trim().toLowerCase().includes("draft"),
-  )
 }
 
 const readDetailValue = (details, fieldKey) => {
@@ -134,7 +128,7 @@ const mapPrefilledCobceToRows = (prefilled = []) => {
   })
 }
 
-function Stepper({ step, onStepChange }) {
+function Stepper({ step, onStepChange, allowAnyStep = false }) {
   const steps = [
     { id: 1, label: "Code of Business Conduct and Ethics", Icon: FileText },
     { id: 2, label: "Conflicts of Interest Policy", Icon: Link2 },
@@ -147,12 +141,13 @@ function Stepper({ step, onStepChange }) {
           const active = step === s.id
           const done = step > s.id
           const Icon = s.Icon
+          const canSelect = allowAnyStep || s.id < step
           return (
             <div key={s.id} className="flex items-start">
               <button
                 type="button"
                 onClick={() => {
-                  if (s.id < step) onStepChange(s.id)
+                  if (canSelect) onStepChange(s.id)
                 }}
                 className="flex flex-col items-center gap-2 text-center"
               >
@@ -187,6 +182,9 @@ export default function AnnualDeclarationRespondModal({
   onOpenChange,
   onBack,
   request,
+  readOnly = false,
+  initialType = "COBCE",
+  onTypeChange,
   onShowToast,
   onSuccess,
 }) {
@@ -212,6 +210,16 @@ export default function AnnualDeclarationRespondModal({
     [financialYear],
   )
 
+  const getDeclarationId = () =>
+    String(
+      request?.reference_id ??
+        request?.annual_declaration_id ??
+        request?.requestId ??
+        "",
+    ).trim()
+
+  const declarationId = getDeclarationId()
+
   const resetState = () => {
     setStep(1)
     setCobceOption("a")
@@ -227,6 +235,12 @@ export default function AnnualDeclarationRespondModal({
     setCoiAnswers(createInitialCoiAnswers())
     setCoiAckPolicy(false)
     setCoiAckUpdate(false)
+  }
+
+  const goToStep = (nextStep) => {
+    const normalized = Number(nextStep) === 2 ? 2 : 1
+    setStep(normalized)
+    onTypeChange?.(normalized === 2 ? "COI" : "COBCE")
   }
 
   const applyDraftPayload = (payload) => {
@@ -250,7 +264,6 @@ export default function AnnualDeclarationRespondModal({
     let nextAckInform = false
     let nextCoiAckPolicy = false
     let nextCoiAckUpdate = false
-    let nextStep = 1
 
     responses.forEach((entry) => {
       const questionId = String(entry?.questionId ?? entry?.question_id ?? "")
@@ -286,7 +299,6 @@ export default function AnnualDeclarationRespondModal({
       if (index < 0 || index >= ANNUAL_COI_QUESTION_COUNT) return
 
       if (response === "agree" || response === "disagree") {
-        nextStep = 2
         const fields = COI_FIELD_CONFIGS[index] ?? []
         nextCoiAnswers[index] = {
           answer: response,
@@ -306,7 +318,6 @@ export default function AnnualDeclarationRespondModal({
     setCoiAnswers(nextCoiAnswers)
     setCoiAckPolicy(nextCoiAckPolicy)
     setCoiAckUpdate(nextCoiAckUpdate)
-    setStep(nextStep)
   }
 
   useEffect(() => {
@@ -315,26 +326,25 @@ export default function AnnualDeclarationRespondModal({
       return
     }
 
-    if (!isDraftRequest(request)) return
-
-    const declarationId = String(request?.reference_id ?? "").trim()
     if (!declarationId) {
-      onShowToast?.("error", "Missing declaration id for this draft.")
+      onShowToast?.("error", "Missing declaration id for this request.")
       return
     }
 
     let cancelled = false
-    const loadDraft = async () => {
+    const loadResponses = async () => {
       setIsDraftLoading(true)
       try {
         const payload = await getAnnualDeclarationResponses(declarationId)
-        if (!cancelled) applyDraftPayload(payload)
+        if (cancelled) return
+        applyDraftPayload(payload)
       } catch (error) {
         console.error(error)
-        if (!cancelled) {
+        // New / unanswered declarations may have no saved responses yet.
+        if (!cancelled && readOnly) {
           onShowToast?.(
             "error",
-            error?.message ?? "Unable to load annual declaration draft.",
+            error?.message ?? "Unable to load annual declaration responses.",
           )
         }
       } finally {
@@ -342,11 +352,16 @@ export default function AnnualDeclarationRespondModal({
       }
     }
 
-    loadDraft()
+    loadResponses()
     return () => {
       cancelled = true
     }
-  }, [open, request, onShowToast])
+  }, [open, declarationId, onShowToast, readOnly])
+
+  useEffect(() => {
+    if (!open) return
+    setStep(normalizeAnnualDeclarationType(initialType) === "COI" ? 2 : 1)
+  }, [open, initialType])
 
   const renumberLocalIds = (rows) =>
     rows.map((row, index) => ({ ...row, displayId: formatSerial(index) }))
@@ -495,8 +510,6 @@ export default function AnnualDeclarationRespondModal({
     )
   }
 
-  const getDeclarationId = () => String(request?.reference_id ?? "").trim()
-
   const buildResponses = () => {
     const responses = []
 
@@ -545,7 +558,6 @@ export default function AnnualDeclarationRespondModal({
   }
 
   const persistDeclaration = async (status) => {
-    const declarationId = getDeclarationId()
     if (!declarationId) {
       throw new Error("Missing declaration id for this request.")
     }
@@ -593,7 +605,7 @@ export default function AnnualDeclarationRespondModal({
 
   const handleNext = () => {
     if (!validateCobceStep()) return
-    setStep(2)
+    goToStep(2)
   }
 
   const handleSubmit = async () => {
@@ -652,7 +664,11 @@ export default function AnnualDeclarationRespondModal({
               </div>
             ) : (
               <>
-            <Stepper step={step} onStepChange={setStep} />
+            <Stepper
+              step={step}
+              onStepChange={goToStep}
+              allowAnyStep={readOnly || step === 2}
+            />
 
             {step === 1 ? (
               <div className="rounded-xl border bg-white p-6">
@@ -663,12 +679,13 @@ export default function AnnualDeclarationRespondModal({
                 <div className="rounded-lg border border-gray-200 p-4 space-y-4">
                   <div className="text-sm text-black">(Select either option a. or b.)</div>
 
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={`flex items-start gap-3 ${readOnly ? "" : "cursor-pointer"}`}>
                     <input
                       type="radio"
                       name="annual-cobce-option"
                       checked={cobceOption === "a"}
-                      onChange={() => setCobceOption("a")}
+                      onChange={() => !readOnly && setCobceOption("a")}
+                      disabled={readOnly}
                       className="mt-1 w-4 h-4 accent-blue-600"
                     />
                     <span className="text-sm text-black">
@@ -678,12 +695,13 @@ export default function AnnualDeclarationRespondModal({
                     </span>
                   </label>
 
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={`flex items-start gap-3 ${readOnly ? "" : "cursor-pointer"}`}>
                     <input
                       type="radio"
                       name="annual-cobce-option"
                       checked={cobceOption === "b"}
-                      onChange={() => setCobceOption("b")}
+                      onChange={() => !readOnly && setCobceOption("b")}
+                      disabled={readOnly}
                       className="mt-1 w-4 h-4 accent-blue-600"
                     />
                     <span className="text-sm text-black">
@@ -694,11 +712,14 @@ export default function AnnualDeclarationRespondModal({
 
                   {cobceOption === "b" ? (
                     <div className="pt-2 space-y-4">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <label className={`inline-flex items-center gap-2 ${readOnly ? "" : "cursor-pointer"}`}>
                         <input
                           type="checkbox"
                           checked={alreadyDeclared}
-                          onChange={(e) => handleAlreadyDeclaredChange(e.target.checked)}
+                          onChange={(e) =>
+                            !readOnly && handleAlreadyDeclaredChange(e.target.checked)
+                          }
+                          disabled={readOnly}
                           className="w-4 h-4 accent-blue-600"
                         />
                         <span className="text-sm text-black">I have already declared</span>
@@ -739,6 +760,8 @@ export default function AnnualDeclarationRespondModal({
                                     updateViolationRow(idx, "description", e.target.value)
                                   }
                                   placeholder="Type here....."
+                                  readOnly={readOnly}
+                                  disabled={readOnly}
                                   className={row.errors?.description ? "border-rose-500" : ""}
                                 />
                               </div>
@@ -749,55 +772,71 @@ export default function AnnualDeclarationRespondModal({
                                     updateViolationRow(idx, "person", e.target.value)
                                   }
                                   placeholder="Type here"
+                                  readOnly={readOnly}
+                                  disabled={readOnly}
                                   className={row.errors?.person ? "border-rose-500" : ""}
                                 />
                               </div>
                               <div className="col-span-2">
-                                <input
-                                  ref={(el) => {
-                                    fileInputRefs.current[row.key] = el
-                                  }}
-                                  type="file"
-                                  className="hidden"
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0] ?? null
-                                    updateViolationRow(idx, "file", f)
-                                    e.target.value = ""
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => fileInputRefs.current[row.key]?.click?.()}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-2 py-2 text-xs text-blue-700 hover:bg-blue-100"
-                                >
-                                  <UploadCloud className="h-4 w-4" />
-                                  {row.file ? (
-                                    <span className="truncate max-w-[100px]" title={row.file.name}>
-                                      {row.file.name}
-                                    </span>
-                                  ) : (
-                                    "Click Here to Upload"
-                                  )}
-                                </button>
+                                {!readOnly ? (
+                                  <>
+                                    <input
+                                      ref={(el) => {
+                                        fileInputRefs.current[row.key] = el
+                                      }}
+                                      type="file"
+                                      className="hidden"
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0] ?? null
+                                        updateViolationRow(idx, "file", f)
+                                        e.target.value = ""
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => fileInputRefs.current[row.key]?.click?.()}
+                                      className="w-full inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-2 py-2 text-xs text-blue-700 hover:bg-blue-100"
+                                    >
+                                      <UploadCloud className="h-4 w-4" />
+                                      {row.file ? (
+                                        <span className="truncate max-w-[100px]" title={row.file.name}>
+                                          {row.file.name}
+                                        </span>
+                                      ) : (
+                                        "Click Here to Upload"
+                                      )}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div className="rounded-md border border-gray-200 bg-gray-50 px-2 py-2 text-xs text-black">
+                                    {row.file?.name || "-"}
+                                  </div>
+                                )}
                               </div>
                               <div className="col-span-2 flex items-center justify-center gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={addViolationRow}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-blue-600 hover:bg-blue-50"
-                                  title="Add row"
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => removeViolationRow(idx)}
-                                  disabled={violationRows.length === 1}
-                                  className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-rose-600 hover:bg-rose-50 disabled:opacity-40"
-                                  title="Delete row"
-                                >
-                                  <Trash className="h-4 w-4" />
-                                </button>
+                                {!readOnly ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={addViolationRow}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-blue-600 hover:bg-blue-50"
+                                      title="Add row"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeViolationRow(idx)}
+                                      disabled={violationRows.length === 1}
+                                      className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-300 bg-white text-rose-600 hover:bg-rose-50 disabled:opacity-40"
+                                      title="Delete row"
+                                    >
+                                      <Trash className="h-4 w-4" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-black/50">-</span>
+                                )}
                               </div>
                             </div>
                           ))
@@ -808,11 +847,12 @@ export default function AnnualDeclarationRespondModal({
                 </div>
 
                 <div className="mt-6 space-y-3">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={`flex items-start gap-3 ${readOnly ? "" : "cursor-pointer"}`}>
                     <input
                       type="checkbox"
                       checked={ackRead}
-                      onChange={(e) => setAckRead(e.target.checked)}
+                      onChange={(e) => !readOnly && setAckRead(e.target.checked)}
+                      disabled={readOnly}
                       className="mt-1 w-4 h-4 accent-blue-600"
                     />
                     <span className="text-sm text-black">
@@ -820,11 +860,12 @@ export default function AnnualDeclarationRespondModal({
                       and above declaration is true to the best of my knowledge.
                     </span>
                   </label>
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={`flex items-start gap-3 ${readOnly ? "" : "cursor-pointer"}`}>
                     <input
                       type="checkbox"
                       checked={ackInform}
-                      onChange={(e) => setAckInform(e.target.checked)}
+                      onChange={(e) => !readOnly && setAckInform(e.target.checked)}
+                      disabled={readOnly}
                       className="mt-1 w-4 h-4 accent-blue-600"
                     />
                     <span className="text-sm text-black">
@@ -835,22 +876,34 @@ export default function AnnualDeclarationRespondModal({
                 </div>
 
                 <div className="mt-8 flex items-center justify-end gap-3">
-                  <Button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    disabled={isSubmitting || !canGoNext}
-                    className="bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    Save as Draft
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleNext}
-                    disabled={isSubmitting || !canGoNext}
-                    className="bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    Next
-                  </Button>
+                  {readOnly ? (
+                    <Button
+                      type="button"
+                      onClick={() => goToStep(2)}
+                      className="bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Next
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={handleSaveDraft}
+                        disabled={isSubmitting || !canGoNext}
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        Save as Draft
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleNext}
+                        disabled={isSubmitting || !canGoNext}
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        Next
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             ) : (
@@ -859,14 +912,16 @@ export default function AnnualDeclarationRespondModal({
                   answers={coiAnswers}
                   onAnswerChange={handleCoiAnswerChange}
                   onFieldChange={handleCoiFieldChange}
+                  readOnly={readOnly}
                 />
 
                 <div className="mt-6 space-y-3">
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={`flex items-start gap-3 ${readOnly ? "" : "cursor-pointer"}`}>
                     <input
                       type="checkbox"
                       checked={coiAckPolicy}
-                      onChange={(e) => setCoiAckPolicy(e.target.checked)}
+                      onChange={(e) => !readOnly && setCoiAckPolicy(e.target.checked)}
+                      disabled={readOnly}
                       className="mt-1 w-4 h-4 accent-blue-600"
                     />
                     <span className="text-sm font-normal text-black">
@@ -877,11 +932,12 @@ export default function AnnualDeclarationRespondModal({
                       of my knowledge and understanding.
                     </span>
                   </label>
-                  <label className="flex items-start gap-3 cursor-pointer">
+                  <label className={`flex items-start gap-3 ${readOnly ? "" : "cursor-pointer"}`}>
                     <input
                       type="checkbox"
                       checked={coiAckUpdate}
-                      onChange={(e) => setCoiAckUpdate(e.target.checked)}
+                      onChange={(e) => !readOnly && setCoiAckUpdate(e.target.checked)}
+                      disabled={readOnly}
                       className="mt-1 w-4 h-4 accent-blue-600"
                     />
                     <span className="text-sm font-normal text-black">
@@ -894,22 +950,34 @@ export default function AnnualDeclarationRespondModal({
                 </div>
 
                 <div className="mt-8 flex items-center justify-end gap-3">
-                  <Button
-                    type="button"
-                    onClick={handleSaveDraft}
-                    disabled={isSubmitting || !allCoiValid}
-                    className="bg-white border border-gray-200 text-black hover:bg-gray-50"
-                  >
-                    Save as Draft
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleSubmit}
-                    disabled={isSubmitting || !allCoiValid}
-                    className="bg-blue-600 text-white hover:bg-blue-700"
-                  >
-                    Submit
-                  </Button>
+                  {readOnly ? (
+                    <Button
+                      type="button"
+                      onClick={() => goToStep(1)}
+                      className="bg-white border border-gray-200 text-black hover:bg-gray-50"
+                    >
+                      Back to COBCE
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        type="button"
+                        onClick={handleSaveDraft}
+                        disabled={isSubmitting || !allCoiValid}
+                        className="bg-white border border-gray-200 text-black hover:bg-gray-50"
+                      >
+                        Save as Draft
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={isSubmitting || !allCoiValid}
+                        className="bg-blue-600 text-white hover:bg-blue-700"
+                      >
+                        Submit
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             )}

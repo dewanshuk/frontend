@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { getDocumentGallery, getWhatsNew } from "@/api/homeApi";
+import { getDocumentGallery, getUserDeclarationStatus, getWhatsNew } from "@/api/homeApi";
 import { Button } from "@/components/ui/button";
 import LandingScaledContent from "@/components/landing/LandingScaledContent";
 import LandingPageLayout from "@/components/landing/LandingPageLayout";
@@ -30,6 +30,8 @@ import {
   mapWhatsNewToNewlyAdded,
 } from "@/data/headHomeData";
 import { mapDocumentGalleryToNewsSlides } from "@/utils/latestNewsUtils";
+import { resolveAnnualDeclarationFromStatus } from "@/utils/annualDeclarationUtils";
+import CenterToast from "@/components/shared/CenterToast";
 import {
   LOOPING_CAROUSEL_EASE,
   useLoopingCarousel,
@@ -945,6 +947,34 @@ export default function LandingPage2() {
     }
     navigate(hubPath);
   };
+  const [annualActionLoading, setAnnualActionLoading] = useState(false);
+  const [toast, setToast] = useState({ open: false, variant: "success", message: "" });
+  const openAnnualDeclaration = async () => {
+    if (annualActionLoading) return;
+    if (requireLogin && !isAuthenticated) {
+      navigateToApp(toLandingPath("/compliance"));
+      return;
+    }
+    setAnnualActionLoading(true);
+    try {
+      const status = await getUserDeclarationStatus();
+      const result = resolveAnnualDeclarationFromStatus(status);
+      if (!result.ok) {
+        setToast({ open: true, variant: "warning", message: result.message });
+        return;
+      }
+      navigateToLanding(result.path);
+    } catch (error) {
+      setToast({
+        open: true,
+        variant: "error",
+        message:
+          error?.message || "Unable to load annual declaration status. Please try again.",
+      });
+    } finally {
+      setAnnualActionLoading(false);
+    }
+  };
   const [framedLeadershipIndex, setFramedLeadershipIndex] = useState(0);
   const [latestNewsSlides, setLatestNewsSlides] = useState([]);
   const [newsViewerIndex, setNewsViewerIndex] = useState(null);
@@ -1115,13 +1145,22 @@ export default function LandingPage2() {
       );
     }
 
+    const handleClick = () => {
+      if (action.action === "annual") {
+        openAnnualDeclaration();
+        return;
+      }
+      if (action.to) navigateToApp(toLandingPath(action.to) || action.to);
+    };
+
     return (
       <button
         key={key}
         type="button"
         className={className}
         style={style}
-        onClick={() => action.to && navigateToApp(toLandingPath(action.to) || action.to)}
+        disabled={action.action === "annual" && annualActionLoading}
+        onClick={handleClick}
       >
         {content}
       </button>
@@ -1490,6 +1529,12 @@ export default function LandingPage2() {
         disableCollapse
         onIndexChange={setNewsViewerIndex}
         onClose={() => setNewsViewerIndex(null)}
+      />
+      <CenterToast
+        open={toast.open}
+        variant={toast.variant}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
     </LandingPageLayout>
   );

@@ -8,16 +8,16 @@ export const QUICK_ACTIONS = [
     illustration: "coi",
     image:
       "/assets/leadership-new/Quick%20Action%20-%20COI%20Button%20Icon.svg",
-    to: "/compliance/self-declaration?type=COI",
+    action: "annual",
   },
-   {
+  {
     title: <div>Annual<br/> COI Declaration</div>,
     background:
       "linear-gradient(169deg, rgba(23, 28, 143, 0.15) 31.407%, rgba(139, 92, 246, 0.15) 48.791%, rgba(0, 182, 253, 0.15) 128.99%)",
     illustration: "cobce",
     image:
       "/assets/leadership-new/Quick%20Action%20-%20COBCE%20Button%20Icon.svg",
-    to: "/compliance/self-declaration?type=COBCE",
+    action: "annual",
   },
   {
     title: <>Access <br/> ComplyShield</>,

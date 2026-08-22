@@ -17,6 +17,7 @@ export default function AnnualCoiDeclarationPanel({
   answers,
   onAnswerChange,
   onFieldChange,
+  readOnly = false,
 }) {
   return (
     <div className="space-y-5">
@@ -35,22 +36,24 @@ export default function AnnualCoiDeclarationPanel({
             </p>
 
             <div className="mt-3 flex items-center gap-6">
-              <label className="inline-flex items-center gap-2 cursor-pointer">
+              <label className={`inline-flex items-center gap-2 ${readOnly ? "" : "cursor-pointer"}`}>
                 <input
                   type="radio"
                   name={`annual-coi-q-${index}`}
                   checked={answer === "agree"}
-                  onChange={() => onAnswerChange(index, "agree")}
+                  onChange={() => !readOnly && onAnswerChange(index, "agree")}
+                  disabled={readOnly}
                   className="w-4 h-4 accent-blue-600"
                 />
                 <span className="text-sm font-normal text-black">Agree</span>
               </label>
-              <label className="inline-flex items-center gap-2 cursor-pointer">
+              <label className={`inline-flex items-center gap-2 ${readOnly ? "" : "cursor-pointer"}`}>
                 <input
                   type="radio"
                   name={`annual-coi-q-${index}`}
                   checked={answer === "disagree"}
-                  onChange={() => onAnswerChange(index, "disagree")}
+                  onChange={() => !readOnly && onAnswerChange(index, "disagree")}
+                  disabled={readOnly}
                   className="w-4 h-4 accent-blue-600"
                 />
                 <span className="text-sm font-normal text-black">Disagree</span>
@@ -71,6 +74,8 @@ export default function AnnualCoiDeclarationPanel({
                         value={form[field.key] ?? ""}
                         onChange={(e) => onFieldChange(index, field.key, e.target.value)}
                         placeholder={field.placeholder}
+                        readOnly={readOnly}
+                        disabled={readOnly}
                         className={`bg-white ${form.errors?.[field.key] ? "border-rose-500" : ""}`}
                       />
                       {form.errors?.[field.key] ? (

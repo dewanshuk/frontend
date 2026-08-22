@@ -19,6 +19,7 @@ import ComplianceFilterModal, {
   EMPTY_COMPLIANCE_FILTERS,
   countActiveComplianceFilters,
   normalizeComplianceFilters,
+  complianceFiltersEqual,
 } from "@/components/compliance/ComplianceFilterModal"
 import RaiseQueryModal from "@/components/compliance/RaiseQueryModal"
 import RaiseComplaintModal from "@/components/compliance/RaiseComplaintModal"
@@ -35,6 +36,19 @@ import {
   getComplianceBasePath,
   isLandingCompliancePath,
 } from "@/lib/appNavigation"
+import {
+  normalizeAnnualDeclarationType,
+} from "@/utils/annualDeclarationUtils"
+import {
+  parseComplianceUrl,
+  buildComplianceUrl,
+  buildComplianceItemUrl,
+  normalizeTab,
+  COMPLIANCE_TABS,
+  COMPLIANCE_TYPES,
+  FILTER_PARAM_KEYS,
+  DEFAULT_PAGE_SIZE,
+} from "@/utils/complianceUrlUtils"
 
 /* ---------------------------------- utils --------------------------------- */
 
@@ -232,6 +246,13 @@ function deriveSelectedTilesFromFilters(filters = {}) {
   return result
 }
 
+// True when the URL carries at least one filter_* param, in which case the URL
+// (not sessionStorage) is the source of truth for filters.
+function urlHasFilterParams(search) {
+  const params = new URLSearchParams(search)
+  return FILTER_PARAM_KEYS.some((key) => params.has(`filter_${key}`))
+}
+
 function loadComplianceFilterSession() {
   if (typeof window === "undefined") return null
   try {
@@ -252,35 +273,52 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
   const isLanding = variant === "landing" || isLandingCompliancePath(location.pathname)
   const complianceBase = getComplianceBasePath({ landing: isLanding })
   const sessionState = useMemo(() => loadComplianceFilterSession(), [])
+  // URL wins over sessionStorage so shared/bookmarked links always render what they say.
+  const initialUrlStateRef = useRef(parseComplianceUrl(location.search))
+  const initialUrlHasFiltersRef = useRef(urlHasFilterParams(location.search))
   const initialAppliedFilters = useMemo(
-    () => normalizeComplianceFilters(sessionState?.appliedFilters),
+    () =>
+      normalizeComplianceFilters(
+        initialUrlHasFiltersRef.current
+          ? initialUrlStateRef.current.filters
+          : sessionState?.appliedFilters,
+      ),
     [sessionState],
   )
 
   const [rows, setRows] = useState([])
   const [totalUsers, setTotalUsers] = useState(0)
-  const [pagination, setPagination] = useState(() => ({
-    pageIndex:
+  const [pagination, setPagination] = useState(() => {
+    const urlState = initialUrlStateRef.current
+
+    const sessionPageIndex =
       Number.isFinite(sessionState?.pagination?.pageIndex) && sessionState.pagination.pageIndex >= 0
         ? sessionState.pagination.pageIndex
-        : 0,
-    pageSize:
+        : 0
+    const sessionPageSize =
       Number.isFinite(sessionState?.pagination?.pageSize) && sessionState.pagination.pageSize > 0
         ? sessionState.pagination.pageSize
-        : 10,
-  }))
+        : DEFAULT_PAGE_SIZE
 
-  const [searchQuery, setSearchQuery] = useState(() =>
-    typeof sessionState?.searchQuery === "string" ? sessionState.searchQuery : "",
-  )
+    return {
+      pageIndex: urlState.page ? urlState.page - 1 : sessionPageIndex,
+      pageSize: urlState.pageSize ?? sessionPageSize,
+    }
+  })
+
+  const initialSearchQuery =
+    initialUrlStateRef.current.search ||
+    (typeof sessionState?.searchQuery === "string" ? sessionState.searchQuery : "")
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery)
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState(() => {
-    const initial = typeof sessionState?.searchQuery === "string" ? sessionState.searchQuery.trim() : ""
+    const initial = initialSearchQuery.trim()
     return initial.length >= 3 ? initial : ""
   })
   const [searchField, setSearchField] = useState("Staff ID")
-  const [selectedTab, setSelectedTab] = useState(() =>
-    sessionState?.selectedTab === "Due to Respond" ? "Due to Respond" : "Due to Respond",
-  )
+  const [selectedTab, setSelectedTab] = useState(() => {
+    const urlState = parseComplianceUrl(location.search)
+    return urlState.tab === COMPLIANCE_TABS.ALL ? "All" : "Due to Respond"
+  })
   const [selectedTiles, setSelectedTiles] = useState(() =>
     deriveSelectedTilesFromFilters(initialAppliedFilters),
   )
@@ -294,7 +332,6 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
   const [respondStack, setRespondStack] = useState([])
   const [assignOpen, setAssignOpen] = useState(false)
   const [assignRequest, setAssignRequest] = useState(null)
-  const [respondOpenedFromDeepLink, setRespondOpenedFromDeepLink] = useState(false)
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0)
   const switchingRespondModalRef = useRef(false)
 
@@ -308,6 +345,11 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
   const giftDeclarationRespondOpen = respondModalKind === "gift"
   const queryRespondOpen = respondModalKind === "query"
   const complaintRespondOpen = respondModalKind === "complaint"
+
+  const annualTypeFromUrl = useMemo(() => {
+    const urlState = parseComplianceUrl(location.search)
+    return urlState.type === COMPLIANCE_TYPES.ANNUAL ? urlState.annualType : null
+  }, [location.search])
 
   const beginRespondModalSwitch = () => {
     switchingRespondModalRef.current = true
@@ -350,6 +392,91 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
     navigate(`${location.pathname}${location.search}`, { replace: true, state: {} })
   }, [location.pathname, location.search, location.state, navigate])
 
+  // Current list-view state (tab + filters + search + pagination) as URL params.
+  const viewUrlState = useMemo(
+    () => ({
+      tab: normalizeTab(selectedTab === "All" ? "all" : "due-to-respond"),
+      filters: appliedFilters,
+      search: debouncedSearchQuery,
+      page: pagination.pageIndex + 1,
+      pageSize: pagination.pageSize,
+    }),
+    [selectedTab, appliedFilters, debouncedSearchQuery, pagination],
+  )
+
+  // Read by callbacks that rebuild the URL (modal open/close, annual type switch)
+  // so they never drop the active filters/search/page.
+  const viewUrlStateRef = useRef(viewUrlState)
+  useEffect(() => {
+    viewUrlStateRef.current = viewUrlState
+  }, [viewUrlState])
+
+  // Last search string this component wrote to the URL. Anything else means the
+  // URL changed externally (back/forward, deep link) and state should follow it.
+  const lastSyncedSearchRef = useRef(null)
+
+  // Two-way sync between list-view state and the URL.
+  useEffect(() => {
+    const urlState = parseComplianceUrl(location.search)
+    const hasItem = Boolean(urlState.type && urlState.id)
+
+    const nextUrl = buildComplianceUrl({
+      basePath: complianceBase,
+      type: hasItem ? urlState.type : null,
+      id: hasItem ? urlState.id : null,
+      mode: hasItem ? urlState.mode : null,
+      annualType: hasItem ? urlState.annualType : null,
+      ...viewUrlState,
+    })
+    const nextSearch = nextUrl.slice(nextUrl.indexOf("?"))
+
+    if (nextSearch === location.search) {
+      lastSyncedSearchRef.current = location.search
+      return
+    }
+
+    // URL moved on its own (browser back/forward, pasted link): adopt it.
+    if (lastSyncedSearchRef.current !== null && location.search !== lastSyncedSearchRef.current) {
+      lastSyncedSearchRef.current = location.search
+
+      const adoptedTab = urlState.tab === COMPLIANCE_TABS.ALL ? "All" : "Due to Respond"
+      if (adoptedTab !== selectedTab) setSelectedTab(adoptedTab)
+
+      const adoptedFilters = normalizeComplianceFilters(urlState.filters ?? EMPTY_COMPLIANCE_FILTERS)
+      if (!complianceFiltersEqual(adoptedFilters, appliedFilters)) {
+        setAppliedFilters(adoptedFilters)
+        setSelectedTiles(deriveSelectedTilesFromFilters(adoptedFilters))
+      }
+
+      if (urlState.search !== debouncedSearchQuery) {
+        setSearchQuery(urlState.search)
+        setDebouncedSearchQuery(urlState.search.length >= 3 ? urlState.search : "")
+      }
+
+      const adoptedPageIndex = urlState.page ? urlState.page - 1 : 0
+      const adoptedPageSize = urlState.pageSize ?? DEFAULT_PAGE_SIZE
+      setPagination((prev) =>
+        prev.pageIndex === adoptedPageIndex && prev.pageSize === adoptedPageSize
+          ? prev
+          : { pageIndex: adoptedPageIndex, pageSize: adoptedPageSize },
+      )
+      return
+    }
+
+    // State changed: write it back to the URL without adding a history entry.
+    lastSyncedSearchRef.current = nextSearch
+    navigate(nextUrl, { replace: true })
+  }, [
+    viewUrlState,
+    selectedTab,
+    appliedFilters,
+    debouncedSearchQuery,
+    complianceBase,
+    location.search,
+    navigate,
+  ])
+
+  // Save state to sessionStorage for pagination/search/filters persistence
   useEffect(() => {
     if (typeof window === "undefined") return
 
@@ -365,29 +492,56 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
     )
   }, [appliedFilters, selectedTiles, selectedTab, searchQuery, pagination])
 
-  // Deep-link from Quick Actions: /compliance?action=gift|complaint|query|self
+  // Restore state from URL on mount and handle deep links
   useEffect(() => {
+    const urlState = parseComplianceUrl(location.search)
     const params = new URLSearchParams(location.search)
     const action = String(params.get("action") || "").toLowerCase().trim()
-    if (!action) return
 
-    if (action === "self") {
-      navigate(`${complianceBase}/self-declaration`, { replace: true })
+    // Handle Quick Actions (action=query|gift|complaint|self) - open raise modals without URL change
+    if (action && !urlState.id) {
+      if (action === "self") {
+        navigate(`${complianceBase}/self-declaration`, { replace: true })
+        return
+      }
+
+      if (action === "query") setRaiseQueryOpen(true)
+      else if (action === "complaint") setRaiseComplaintOpen(true)
+      else if (action === "gift") setGiftDeclarationOpen(true)
+
+      // Clean up action param from URL after opening modal
+      if (action === "query" || action === "complaint" || action === "gift") {
+        params.delete("action")
+        const newUrl = buildComplianceUrl({
+          basePath: complianceBase,
+          ...viewUrlStateRef.current,
+          tab: urlState.tab,
+        })
+        navigate(newUrl, { replace: true })
+      }
       return
     }
 
-    if (action === "query") setRaiseQueryOpen(true)
-    else if (action === "complaint") setRaiseComplaintOpen(true)
-    else if (action === "gift") setGiftDeclarationOpen(true)
-    else return
+    // If we have a type and ID in URL, open the respond/view modal
+    if (urlState.type && urlState.id) {
+      const kind = getRespondModalKind(urlState.type)
 
-    params.delete("action")
-    const nextSearch = params.toString()
-    navigate(
-      { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" },
-      { replace: true },
-    )
-  }, [complianceBase, location.pathname, location.search, navigate])
+      if (kind) {
+        const request = {
+          requestId: urlState.id,
+          reference_id: urlState.id,
+          type: urlState.type,
+        }
+
+        if (urlState.type === COMPLIANCE_TYPES.ANNUAL && urlState.annualType) {
+          request.annualType = urlState.annualType
+        }
+
+        const frame = { request, mode: urlState.mode }
+        setRespondStack([frame])
+      }
+    }
+  }, [complianceBase, navigate]) // Only run on mount
 
   const complianceStats = useMemo(() => {
     const s = apiSummary
@@ -519,14 +673,18 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
     setDebouncedSearchQuery("")
   }, [searchQuery])
 
-  // When search changes, restart from the first page.
+  // When the tab, filters or search actually change, restart from the first page.
+  // The first run is skipped so a page restored from the URL/session survives mount,
+  // and values are compared so re-adopting the same state from the URL is a no-op.
+  const pageResetKeyRef = useRef(null)
   useEffect(() => {
-    setPagination((p) => ({ ...p, pageIndex: 0 }))
-  }, [debouncedSearchQuery])
+    const key = JSON.stringify([selectedTab, debouncedSearchQuery, appliedFilters])
+    const previousKey = pageResetKeyRef.current
+    pageResetKeyRef.current = key
 
-  useEffect(() => {
-    setPagination((p) => ({ ...p, pageIndex: 0 }))
-  }, [selectedTab, appliedFilters])
+    if (previousKey === null || previousKey === key) return
+    setPagination((p) => (p.pageIndex === 0 ? p : { ...p, pageIndex: 0 }))
+  }, [selectedTab, debouncedSearchQuery, appliedFilters])
 
   // Fetch paginated requests from API.
   useEffect(() => {
@@ -594,7 +752,6 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
       if (!row) return
 
       const isView = mode === "view"
-      if (isView && isAnnualDeclarationType(row.type)) return
 
       if (isSelfDeclarationType(row.type) && !isView && isDraftStatus(row)) {
         const draftId = String(row.requestId || "").trim()
@@ -623,6 +780,16 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
       const frame = { request: row, mode: isView ? "view" : "respond" }
       beginRespondModalSwitch()
       setRespondStack((prev) => (push && prev.length > 0 ? [...prev, frame] : [frame]))
+
+      // Sync URL when opening modal (only if not pushing to stack)
+      if (!push) {
+        const newUrl = buildComplianceItemUrl(row, {
+          ...viewUrlStateRef.current,
+          mode: isView ? "view" : "respond",
+          basePath: complianceBase,
+        })
+        navigate(newUrl, { replace: true })
+      }
     },
     [complianceBase, navigate],
   )
@@ -640,8 +807,35 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
   const dismissRespondFlow = useCallback(() => {
     beginRespondModalSwitch()
     setRespondStack([])
-    setRespondOpenedFromDeepLink(false)
-  }, [])
+
+    // Return to base compliance URL, keeping tab/filters/search/page
+    const newUrl = buildComplianceUrl({
+      basePath: complianceBase,
+      ...viewUrlStateRef.current,
+    })
+    navigate(newUrl, { replace: true })
+  }, [complianceBase, navigate])
+
+  const syncAnnualTypeInUrl = useCallback(
+    (type) => {
+      const urlState = parseComplianceUrl(location.search)
+      if (urlState.type !== COMPLIANCE_TYPES.ANNUAL) return
+
+      const nextType = normalizeAnnualDeclarationType(type)
+      if (urlState.annualType === nextType) return
+
+      const newUrl = buildComplianceUrl({
+        basePath: complianceBase,
+        ...viewUrlStateRef.current,
+        type: COMPLIANCE_TYPES.ANNUAL,
+        id: urlState.id,
+        mode: urlState.mode,
+        annualType: nextType,
+      })
+      navigate(newUrl, { replace: true })
+    },
+    [complianceBase, location.search, navigate],
+  )
 
   const closeRespondModal = useCallback(
     (next) => {
@@ -684,43 +878,11 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
     setAssignOpen(true)
   }, [])
 
-  // Deep-link from Recent Activities: /compliance?requestId=...&type=...&subType=...
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    const requestId = String(params.get("requestId") || "").trim()
-    if (!requestId || !hasLoadedRows) return
-
-    setRespondOpenedFromDeepLink(true)
-    const matchedRow = rows.find((row) => String(row.requestId) === requestId)
-    handleRespond(
-      matchedRow || {
-        requestId,
-        type: String(params.get("type") || "").trim(),
-        subType: String(params.get("subType") || "").trim(),
-      },
-    )
-
-    params.delete("requestId")
-    params.delete("type")
-    params.delete("subType")
-    const nextSearch = params.toString()
-    navigate(
-      { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : "" },
-      { replace: true },
-    )
-  }, [handleRespond, hasLoadedRows, location.pathname, location.search, navigate, rows])
 
   const handleRespondBack = () => {
     if (respondStack.length > 1) {
       beginRespondModalSwitch()
       setRespondStack((prev) => prev.slice(0, -1))
-      return
-    }
-    if (respondOpenedFromDeepLink) {
-      setRespondOpenedFromDeepLink(false)
-      beginRespondModalSwitch()
-      setRespondStack([])
-      navigate(-1)
       return
     }
     dismissRespondFlow()
@@ -841,7 +1003,7 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
         cell: ({ row }) => {
           const completed = isOverallStatusCompleted(row.original?.overallStatus)
           const isAnnual = isAnnualDeclarationType(row.original?.type)
-          const viewDisabled = isAnnual
+          const viewDisabled = isAnnual && !completed
           const assignDisabled = completed || isAnnual
           const unassigned = row.original?.assignedTo === null || row.original?.assignedTo === undefined || String(row.original?.assignedTo).trim() === ""
           // Disable Respond on "All" tab. On "Due to Respond", disable when unassigned
@@ -1119,6 +1281,9 @@ export default function ComplianceHelpdesk({ variant = "default" }) {
           onBack={handleRespondBack}
           onOpenChange={closeRespondModal}
           request={respondRequest}
+          readOnly={isRespondReadOnly}
+          initialType={annualTypeFromUrl || respondRequest?.annualType || "COBCE"}
+          onTypeChange={syncAnnualTypeInUrl}
           onShowToast={(variant, message) => setToast({ open: true, variant, message })}
           onSuccess={refreshDashboard}
         />
