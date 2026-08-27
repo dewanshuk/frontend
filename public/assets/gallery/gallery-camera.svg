@@ -1,0 +1,53 @@
+<svg width="200" height="150" viewBox="0 0 200 150" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Gallery">
+  <defs>
+    <linearGradient id="gc-body" x1="18" y1="42" x2="128" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c4b5fd" />
+      <stop offset="0.55" stop-color="#8b5cf6" />
+      <stop offset="1" stop-color="#6d28d9" />
+    </linearGradient>
+    <linearGradient id="gc-top" x1="46" y1="30" x2="90" y2="52" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ddd6fe" />
+      <stop offset="1" stop-color="#a78bfa" />
+    </linearGradient>
+    <linearGradient id="gc-lens" x1="52" y1="64" x2="98" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f5f3ff" />
+      <stop offset="0.5" stop-color="#a5b4fc" />
+      <stop offset="1" stop-color="#4f46e5" />
+    </linearGradient>
+    <linearGradient id="gc-photo" x1="118" y1="58" x2="192" y2="136" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff" />
+      <stop offset="1" stop-color="#fbcfe8" />
+    </linearGradient>
+    <linearGradient id="gc-hill" x1="126" y1="96" x2="184" y2="130" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#c084fc" />
+      <stop offset="1" stop-color="#f472b6" />
+    </linearGradient>
+  </defs>
+
+  <!-- photo card behind the camera -->
+  <g transform="rotate(8 155 96)">
+    <rect x="116" y="56" width="76" height="80" rx="10" fill="url(#gc-photo)" stroke="#ffffff" stroke-width="3" />
+    <rect x="124" y="64" width="60" height="64" rx="6" fill="#f5f3ff" />
+    <circle cx="140" cy="80" r="7" fill="#fbbf24" />
+    <path d="M124 116l16-20 12 14 10-11 22 29H124z" fill="url(#gc-hill)" />
+  </g>
+
+  <!-- camera body -->
+  <rect x="48" y="30" width="42" height="22" rx="7" fill="url(#gc-top)" />
+  <rect x="14" y="44" width="118" height="88" rx="18" fill="url(#gc-body)" />
+  <rect x="14" y="44" width="118" height="88" rx="18" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2" />
+
+  <!-- flash -->
+  <rect x="100" y="56" width="20" height="12" rx="4" fill="#ffffff" fill-opacity="0.85" />
+
+  <!-- lens -->
+  <circle cx="73" cy="88" r="30" fill="#ffffff" fill-opacity="0.6" />
+  <circle cx="73" cy="88" r="24" fill="url(#gc-lens)" />
+  <circle cx="73" cy="88" r="12" fill="#312e81" fill-opacity="0.55" />
+  <circle cx="65" cy="79" r="6" fill="#ffffff" fill-opacity="0.85" />
+
+  <!-- sparkles -->
+  <path d="M28 22l2.6 6.4L37 31l-6.4 2.6L28 40l-2.6-6.4L19 31l6.4-2.6L28 22z" fill="#f9a8d4" />
+  <path d="M108 16l1.8 4.4 4.4 1.8-4.4 1.8L108 28l-1.8-4.4-4.4-1.8 4.4-1.8L108 16z" fill="#fcd34d" />
+  <path d="M186 34l1.5 3.7 3.7 1.5-3.7 1.5-1.5 3.7-1.5-3.7-3.7-1.5 3.7-1.5 1.5-3.7z" fill="#c4b5fd" />
+</svg>

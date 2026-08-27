@@ -1,0 +1,16 @@
+VITE_GENERIC_API_BASE_URL="https://dev-ecp-api.marutisuzuki.com"
+VITE_DOC_EVENTS_API_BASE_URL="https://dev-ecp-api.marutisuzuki.com"
+VITE_USER_MANAGEMENT_API_BASE_URL="https://dev-ecp-api.marutisuzuki.com"
+VITE_TRAINING_API_BASE_URL="https://dev-ecp-api.marutisuzuki.com"
+VITE_IS_AZURE_ENABLED=false
+VITE_API_BASE_URL=
+VITE_BYPASS_AUTH=true
+VITE_AZURE_AD_REDIRECT_URI=http://localhost:5173
+VITE_AZURE_AD_POST_LOGOUT_REDIRECT_URI=http://localhost:5173
+VITE_AZURE_AD_SCOPES=openid,profile,email
+# Release-wise feature flags (set "true" to enable, anything else to disable)
+VITE_FEATURE_R0=true
+VITE_FEATURE_R1=true
+VITE_FEATURE_R2=true
+VITE_FEATURE_R3=true
+VITE_USE_LANDING_PAGE=true

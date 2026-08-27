@@ -1,0 +1,81 @@
+.ecp-datepicker-popper {
+  font-family: inherit;
+}
+
+.ecp-datepicker-calendar {
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.75rem;
+  background: hsl(var(--background));
+  box-shadow: 0 8px 22px rgba(2, 8, 23, 0.12);
+  padding: 0.4rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__header {
+  background: transparent;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-top: 0.45rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__current-month {
+  color: hsl(var(--foreground));
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__navigation {
+  top: 0.62rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__navigation-icon::before {
+  border-color: hsl(var(--muted-foreground));
+  border-width: 2px 2px 0 0;
+}
+
+.ecp-datepicker-calendar .react-datepicker__day-names {
+  margin-top: 0.2rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__day-name {
+  color: hsl(var(--muted-foreground));
+  font-size: 0.72rem;
+  font-weight: 500;
+  width: 2rem;
+  line-height: 2rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__day {
+  width: 2rem;
+  line-height: 2rem;
+  margin: 0.08rem;
+  border-radius: 0.45rem;
+  color: hsl(var(--foreground));
+  font-size: 0.82rem;
+}
+
+.ecp-datepicker-calendar .react-datepicker__day:hover {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.ecp-datepicker-calendar .react-datepicker__day--today {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+  font-weight: 600;
+}
+
+.ecp-datepicker-calendar .react-datepicker__day--selected,
+.ecp-datepicker-calendar .react-datepicker__day--keyboard-selected {
+  background-color: #2563eb;
+  color: #ffffff;
+}
+
+.ecp-datepicker-calendar .react-datepicker__day--disabled {
+  color: hsl(var(--muted-foreground));
+  opacity: 0.45;
+}
+
+/* Year dropdown — half of the react-datepicker default (150px → 75px) */
+.ecp-datepicker-calendar .react-datepicker__year-dropdown--scrollable {
+  height: 75px;
+}
