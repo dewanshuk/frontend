@@ -24,7 +24,7 @@ const ALLOWED_EXTENSIONS = [
 ];
 const MAX_FILE_SIZE_BYTES = 30 * 1024 * 1024;
 const MAX_REPORT_FILES = 6;
-const MAX_PEOPLE = 3;
+const MAX_PEOPLE = 5;
 
 /** Normalise auditors/auditees into picker values `{ id, name }`. */
 export function toPeoplePickerValues(value) {

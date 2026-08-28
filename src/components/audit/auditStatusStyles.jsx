@@ -22,3 +22,25 @@ export function AuditStatusBadge({ status, className = "" }) {
     </span>
   );
 }
+
+export const riskLevelStyles = {
+  LOW: "bg-green-400/15 text-[#009951]",
+  MEDIUM: "bg-[#fff1c2] text-[#bf6a02]",
+  HIGH: "bg-[#fee9e7] text-[#c00f0c]",
+};
+
+export function RiskLevelBadge({ level, className = "" }) {
+  const normalized = String(level || "").toUpperCase();
+  if (!normalized) {
+    return <span className="text-base text-[#b3b3b3]">—</span>;
+  }
+  return (
+    <span
+      className={`inline-flex min-w-[88px] items-center justify-center rounded-lg px-3 py-1.5 text-sm font-semibold leading-[1.4] ${
+        riskLevelStyles[normalized] || "bg-[#f5f5f5] text-[#757575]"
+      } ${className}`}
+    >
+      {level}
+    </span>
+  );
+}

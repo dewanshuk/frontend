@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import moment from "moment";
 import {
+  ChevronDown,
   ChevronLeft,
   Download,
   Link2,
@@ -25,7 +26,10 @@ import {
 import { cn } from "@/lib/utils";
 import { DATE_FORMAT_MOMENT, toDisplayDateString } from "@/config";
 import Calendar from "@/atoms/calendar";
-import { AuditStatusBadge } from "@/components/audit/auditStatusStyles";
+import {
+  AuditStatusBadge,
+  RiskLevelBadge,
+} from "@/components/audit/auditStatusStyles";
 import CheckpointActionModal from "@/components/audit/CheckpointActionModal";
 import CheckpointHistoryDrawer from "@/components/audit/CheckpointHistoryDrawer";
 import {
@@ -206,11 +210,13 @@ const COL = {
   checkpoint: 260,
   criteria: 260,
   riskLevel: 140,
-  plannedDate: 200,
+  status: 168,
   reference: 240,
   pendingAt: 120,
-  status: 168,
+  plannedDate: 200,
   actualDate: 200,
+  auditeeComments: 220,
+  auditorComments: 220,
   actions: 84,
 };
 
@@ -519,6 +525,7 @@ export default function AuditCheckpointsTable({
       closeDisabledReason: isTerminal
         ? "This checkpoint is already closed."
         : "",
+      showReopen: isAuditor && isTerminal,
       respondDisabled: noPendingOwner || pendingWithOther,
       respondDisabledReason: noPendingOwner
         ? "This checkpoint has no pending action."
@@ -898,7 +905,7 @@ const handleReferenceFileChange = (event) => {
   ) : (
     <div className="w-full overflow-hidden rounded-2xl bg-white pt-5 font-sans shadow-[0_1px_2px_rgba(0,0,0,0.05)]">
       <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[1720px] table-fixed border-separate border-spacing-0">
+        <table className="w-full min-w-[2160px] table-fixed border-separate border-spacing-0">
           <thead>
             <tr>
               {!readOnly ? (
@@ -929,22 +936,10 @@ const handleReferenceFileChange = (event) => {
                 Risk Level
               </th>
               <th
-                className={`${thBase} text-center leading-tight`}
-                style={widthStyle(COL.plannedDate)}
-              >
-                Planned Closure Date
-              </th>
-              <th
                 className={`${thBase} pl-5 text-left`}
                 style={widthStyle(COL.reference)}
               >
                 Reference
-              </th>
-              <th
-                className={`${thBase} text-center`}
-                style={widthStyle(COL.pendingAt)}
-              >
-                Pending at
               </th>
               <th
                 className={`${thBase} text-left`}
@@ -953,11 +948,35 @@ const handleReferenceFileChange = (event) => {
                 Checkpoint Status
               </th>
               <th
+                className={`${thBase} text-center`}
+                style={widthStyle(COL.pendingAt)}
+              >
+                Pending at
+              </th>
+              <th
+                className={`${thBase} text-center leading-tight`}
+                style={widthStyle(COL.plannedDate)}
+              >
+                Planned Closure Date
+              </th>
+              <th
                 className={`${thBase} text-center leading-tight`}
                 style={widthStyle(COL.actualDate)}
               >
                 <span className="block">Actual</span>
                 <span className="block">Closure Date</span>
+              </th>
+              <th
+                className={`${thBase} text-left`}
+                style={widthStyle(COL.auditeeComments)}
+              >
+                Auditee Comments
+              </th>
+              <th
+                className={`${thBase} text-left`}
+                style={widthStyle(COL.auditorComments)}
+              >
+                Auditor Comments
               </th>
               <th
                 className={`${thBase} ${stickyActions("header")} text-center`}
@@ -1064,29 +1083,68 @@ const handleReferenceFileChange = (event) => {
                     style={widthStyle(COL.riskLevel)}
                   >
                     {fieldsReadOnly ? (
-                      <span className="text-base text-[#1e1e1e]">
-                        {row.risk_level || "—"}
-                      </span>
+                      <RiskLevelBadge level={row.risk_level} />
                     ) : (
-                      <select
-                        value={row.risk_level || ""}
-                        onChange={(event) =>
-                          updateRow(row.id, "risk_level", event.target.value)
-                        }
-                        className={cn(
-                          inputBase,
-                          "pr-8 text-center",
-                          !row.risk_level && "text-[#b3b3b3]",
-                        )}
-                      >
-                        <option value="">Select</option>
-                        {RISK_LEVEL_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                      <div className="relative w-full">
+                        <select
+                          value={row.risk_level || ""}
+                          onChange={(event) =>
+                            updateRow(row.id, "risk_level", event.target.value)
+                          }
+                          className={cn(
+                            inputBase,
+                            "cursor-pointer pr-8 text-center font-medium",
+                            row.risk_level
+                              ? "text-[#1e1e1e]"
+                              : "text-[#757575]",
+                          )}
+                        >
+                          <option value="" className="text-[#757575]">
+                            Select
                           </option>
-                        ))}
-                      </select>
+                          {RISK_LEVEL_OPTIONS.map((option) => (
+                            <option
+                              key={option}
+                              value={option}
+                              className="text-[#1e1e1e]"
+                            >
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                        <ChevronDown
+                          className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#2563eb]"
+                          strokeWidth={2}
+                        />
+                      </div>
                     )}
+                  </td>
+                  <td className={`${tdBase} pl-5`} style={widthStyle(COL.reference)}>
+                    <ReferenceFilesCell
+                      files={row.reference_files}
+                      readOnly={fieldsReadOnly}
+                      onRemove={(file) =>
+                        handleRemoveReferenceFile(row.id, file)
+                      }
+                    />
+                  </td>
+                  <td className={tdBase} style={widthStyle(COL.status)}>
+                    {(() => {
+                      const statusLabel = String(
+                        row.status || row.checkpoint_status || "",
+                      ).trim();
+                      return statusLabel ? (
+                        <AuditStatusBadge status={statusLabel} />
+                      ) : (
+                        <span className="text-base text-[#b3b3b3]">—</span>
+                      );
+                    })()}
+                  </td>
+                  <td
+                    className={`${tdBase} text-center text-base font-normal text-[#1e1e1e]`}
+                    style={widthStyle(COL.pendingAt)}
+                  >
+                    {row.pending_at || "—"}
                   </td>
                   <td className={tdBase} style={widthStyle(COL.plannedDate)}>
                     <ClosureDateCalendar
@@ -1103,33 +1161,6 @@ const handleReferenceFileChange = (event) => {
                       </p>
                     ) : null}
                   </td>
-                  <td className={`${tdBase} pl-5`} style={widthStyle(COL.reference)}>
-                    <ReferenceFilesCell
-                      files={row.reference_files}
-                      readOnly={fieldsReadOnly}
-                      onRemove={(file) =>
-                        handleRemoveReferenceFile(row.id, file)
-                      }
-                    />
-                  </td>
-                  <td
-                    className={`${tdBase} text-center text-base font-normal text-[#1e1e1e]`}
-                    style={widthStyle(COL.pendingAt)}
-                  >
-                    {row.pending_at || "—"}
-                  </td>
-                  <td className={tdBase} style={widthStyle(COL.status)}>
-                    {(() => {
-                      const statusLabel = String(
-                        row.status || row.checkpoint_status || "",
-                      ).trim();
-                      return statusLabel ? (
-                        <AuditStatusBadge status={statusLabel} />
-                      ) : (
-                        <span className="text-base text-[#b3b3b3]">—</span>
-                      );
-                    })()}
-                  </td>
                   <td className={tdBase} style={widthStyle(COL.actualDate)}>
                     <ClosureDateCalendar
                       value={
@@ -1138,6 +1169,30 @@ const handleReferenceFileChange = (event) => {
                         null
                       }
                       readOnly
+                    />
+                  </td>
+                  <td className={tdBase} style={widthStyle(COL.auditeeComments)}>
+                    <textarea
+                      value={row.auditee_comments || row.auditeeComments || ""}
+                      readOnly
+                      rows={4}
+                      placeholder="—"
+                      className={cn(
+                        textareaBase,
+                        "cursor-default resize-y bg-[#f5f5f5]",
+                      )}
+                    />
+                  </td>
+                  <td className={tdBase} style={widthStyle(COL.auditorComments)}>
+                    <textarea
+                      value={row.auditor_comments || row.auditorComments || ""}
+                      readOnly
+                      rows={4}
+                      placeholder="—"
+                      className={cn(
+                        textareaBase,
+                        "cursor-default resize-y bg-[#f5f5f5]",
+                      )}
                     />
                   </td>
                   <td
@@ -1184,6 +1239,13 @@ const handleReferenceFileChange = (event) => {
                             >
                               History
                             </MenuItemWithTooltip>
+                            {actionState.showReopen ? (
+                              <DropdownMenuItem
+                                onSelect={() => openActionModal("reopen", row)}
+                              >
+                                Reopen
+                              </DropdownMenuItem>
+                            ) : null}
                             {!readOnly && !rowLocked ? (
                               <>
                                 <DropdownMenuItem

@@ -855,6 +855,42 @@ export const closeCheckpoint = async ({
 };
 
 /**
+ * Reopen a closed checkpoint.
+ * POST /api/audit/checkpoints/{checkpointId}/reopen
+ * form-data: payload (JSON string, optional) — { remarks }
+ */
+export const reopenCheckpoint = async ({
+  auditId: _auditId,
+  checkpointId,
+  remarks,
+} = {}) => {
+  const resolvedCp = String(checkpointId ?? "").trim();
+  if (!resolvedCp) {
+    throw new Error("Checkpoint is missing.");
+  }
+
+  const formData = new FormData();
+  const trimmedRemarks = String(remarks || "").trim();
+  if (trimmedRemarks) {
+    formData.append("payload", JSON.stringify({ remarks: trimmedRemarks }));
+  }
+
+  try {
+    const response = await genericApi.post(
+      `/api/audit/checkpoints/${encodeURIComponent(resolvedCp)}/reopen`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } },
+    );
+    return assertAuditMutationSuccess(
+      response?.data || { success: true },
+      "Unable to reopen checkpoint.",
+    );
+  } catch (err) {
+    mapApiError(err, "Unable to reopen checkpoint.");
+  }
+};
+
+/**
  * Returns whether the current user can create/manage draft audits.
  * Failures are handled by callers as denied access (fail closed).
  *

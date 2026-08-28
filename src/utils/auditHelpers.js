@@ -124,6 +124,8 @@ export const createEmptyCheckpoint = (serialNo = 1) => {
     checkpoint_status: "",
     actual_closure_date: null,
     actualClosureDate: null,
+    auditee_comments: "",
+    auditor_comments: "",
     tags: [],
   };
 };
@@ -359,6 +361,8 @@ export const mapCheckpointFromApi = (cp, index) => {
     ),
     pending_at: cp.pendingAt ?? cp.pending_at ?? "",
     risk_level: cp.riskLevel ?? cp.risk_level ?? "",
+    auditee_comments: cp.auditeeComments ?? cp.auditee_comments ?? "",
+    auditor_comments: cp.auditorComments ?? cp.auditor_comments ?? "",
     tags: Array.isArray(cp.tags) ? cp.tags : [],
     reference_files: referenceFiles,
     reference: referenceFiles[0]

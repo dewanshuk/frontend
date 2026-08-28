@@ -7,6 +7,7 @@ import { DATE_FORMAT_MOMENT, toDisplayDateString } from "@/config";
 import {
   CHECKPOINT_ACTION_FILE_RULES,
   closeCheckpoint,
+  reopenCheckpoint,
   respondToCheckpoint,
 } from "@/api/audit";
 
@@ -20,6 +21,7 @@ const VARIANT_CONFIG = {
     submit: respondToCheckpoint,
     outcomeStatus: null,
     requiresClosureDate: false,
+    allowFiles: true,
   },
   closed: {
     title: () => "Mark as Closed",
@@ -27,6 +29,15 @@ const VARIANT_CONFIG = {
     submit: (payload) => closeCheckpoint({ ...payload, action: "closed" }),
     outcomeStatus: "Closed",
     requiresClosureDate: true,
+    allowFiles: true,
+  },
+  reopen: {
+    title: () => "Reopen Checkpoint",
+    successMessage: "Checkpoint reopened successfully",
+    submit: reopenCheckpoint,
+    outcomeStatus: "Open",
+    requiresClosureDate: false,
+    allowFiles: false,
   },
 };
 
@@ -179,7 +190,7 @@ export default function CheckpointActionModal({
         auditId,
         checkpointId,
         remarks,
-        files,
+        ...(config.allowFiles ? { files } : {}),
         ...(config.requiresClosureDate
           ? { closureDate: String(closureDate).trim() }
           : {}),
@@ -312,6 +323,7 @@ export default function CheckpointActionModal({
               />
             </div>
 
+            {config.allowFiles ? (
             <div className="flex flex-col gap-1.5">
               <p className={labelClass}>Upload Attachment/s</p>
               <div
@@ -399,6 +411,7 @@ export default function CheckpointActionModal({
                 </ul>
               ) : null}
             </div>
+            ) : null}
 
             <div className="mt-1 flex flex-wrap items-center justify-between gap-3">
               <button
