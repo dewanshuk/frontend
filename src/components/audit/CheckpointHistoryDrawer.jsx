@@ -27,7 +27,9 @@ const pickRoleStyle = (role, index) => {
 
 const formatHeaderNo = (checkpoint) => {
   const no = checkpoint?.serial_no ?? checkpoint?.serialNo ?? "";
-  return no ? `Checkpoint ${String(no).padStart(2, "0")}` : "Checkpoint";
+  return no
+    ? `Audit Observation ${String(no).padStart(2, "0")}`
+    : "Audit Observation";
 };
 
 /**
@@ -67,7 +69,7 @@ export default function CheckpointHistoryDrawer({
     }
 
     if (!checkpointId) {
-      setError("Checkpoint is missing.");
+      setError("Audit Observation is missing.");
       return undefined;
     }
 

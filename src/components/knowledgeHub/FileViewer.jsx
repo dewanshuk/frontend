@@ -8,6 +8,7 @@ import * as XLSX from "xlsx"
 import * as UTIF from "utif"
 import * as pdfjsLib from "pdfjs-dist"
 import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url"
+import "./pdfTextLayer.css"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc
 
@@ -172,6 +173,8 @@ function ProtectedPdfCanvas({ url, className, onLoad, onError }) {
         state.canvas.height = 0
       }
       state.canvas = null
+      state.textLayer?.cancel()
+      state.textLayer = null
       state.rendered = false
       state.element.replaceChildren()
     }
@@ -221,6 +224,25 @@ function ProtectedPdfCanvas({ url, className, onLoad, onError }) {
         state.rendered = true
         renderedOrder.push(pageNumber)
         trimLiveCanvases(pageNumber)
+
+        // Invisible text layer over the canvas raster so the browser's native
+        // find-in-page (Ctrl+F) can locate and select text on the page.
+        try {
+          const textLayerDiv = document.createElement("div")
+          textLayerDiv.className = "textLayer"
+          const textLayer = new pdfjsLib.TextLayer({
+            textContentSource: page.streamTextContent(),
+            container: textLayerDiv,
+            viewport,
+          })
+          state.textLayer = textLayer
+          state.element.appendChild(textLayerDiv)
+          await textLayer.render()
+        } catch (textErr) {
+          if (textErr?.name !== "AbortException") {
+            console.error(`PDF page ${pageNumber} text layer failed:`, textErr)
+          }
+        }
       } catch (err) {
         if (err?.name !== "RenderingCancelledException") {
           console.error(`Protected PDF page ${pageNumber} render failed:`, err)
@@ -233,7 +255,7 @@ function ProtectedPdfCanvas({ url, className, onLoad, onError }) {
 
     const createPlaceholder = (pageNumber, viewport) => {
       const element = document.createElement("div")
-      element.className = "mx-auto mb-3 bg-white shadow"
+      element.className = "relative mx-auto mb-3 bg-white shadow"
       element.style.width = `${Math.round(viewport.width)}px`
       element.style.height = `${Math.round(viewport.height)}px`
       element.dataset.pdfPage = String(pageNumber)
@@ -242,6 +264,7 @@ function ProtectedPdfCanvas({ url, className, onLoad, onError }) {
         scale,
         canvas: null,
         task: null,
+        textLayer: null,
         rendered: false,
         rendering: false,
       })
@@ -306,6 +329,7 @@ function ProtectedPdfCanvas({ url, className, onLoad, onError }) {
       observer?.disconnect()
       pages.forEach((state) => {
         state.task?.cancel?.()
+        state.textLayer?.cancel()
         if (state.canvas) {
           state.canvas.width = 0
           state.canvas.height = 0

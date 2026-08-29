@@ -1179,11 +1179,11 @@ export const generateAuditId = async () => {
     throw new Error("Unable to initialize audit slug.");
   }
 
+  // Only a storage slug exists at this point — no business audit ID has
+  // been assigned yet, so callers must not surface it as a display ID.
   return {
     id: slug,
     slug,
-    audit_id: slug,
-    display_audit_id: slug,
   };
 };
 

@@ -30,7 +30,7 @@ const backButtonClass =
 
 const createEmptyAudit = () => ({
   id: null,
-  display_audit_id: "—",
+  display_audit_id: null,
   audit_id: "",
   audit_name: "",
   vertical_div_deptt: "",
@@ -82,12 +82,12 @@ export default function AuditNew() {
       try {
         const generated = await generateAuditId();
         if (cancelled) return;
+        // `generated` only carries the internal upload slug — no business
+        // audit ID exists yet, so audit_id/display_audit_id stay unset.
         setAudit((current) => ({
           ...current,
           id: generated.id,
           slug: generated.slug,
-          audit_id: generated.audit_id,
-          display_audit_id: generated.display_audit_id,
         }));
       } catch (error) {
         if (cancelled) return;
@@ -267,8 +267,6 @@ export default function AuditNew() {
         ...current,
         id: generated.id,
         slug: generated.slug,
-        audit_id: generated.audit_id,
-        display_audit_id: generated.display_audit_id,
       }));
     } catch (error) {
       const message =
@@ -509,7 +507,8 @@ export default function AuditNew() {
               audit={audit}
               checkpoints={checkpoints}
               onCheckpointsChange={setCheckpoints}
-              isSaving={isSaving || !hasAuditId}
+              isSaving={isSaving}
+              disabled={!hasAuditId}
               showHeader
               rowErrors={checkpointErrors}
               onClearRowFieldError={clearCheckpointFieldError}

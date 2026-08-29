@@ -100,14 +100,14 @@ export const toAuditPublishValues = toAuditDetailsFormValues;
 export const validateAuditForPublish = validateAuditDetailsForPublish;
 
 const REQUIRED_CHECKPOINT_MSG = {
-  checkpoint: "Checkpoint is required.",
-  judgement_criteria: "Judgement Criteria is required.",
+  checkpoint: "Audit Observation is required.",
+  judgement_criteria: "Legal Provision is required.",
   planned_closure_date: "Planned Closure Date is required.",
 };
 
 const CHECKPOINT_MAX_LEN_MSG = {
-  checkpoint: `Checkpoint cannot exceed ${MAX_CHECKPOINT_TEXT_LENGTH} characters.`,
-  judgement_criteria: `Judgement Criteria cannot exceed ${MAX_CHECKPOINT_TEXT_LENGTH} characters.`,
+  checkpoint: `Audit Observation cannot exceed ${MAX_CHECKPOINT_TEXT_LENGTH} characters.`,
+  judgement_criteria: `Legal Provision cannot exceed ${MAX_CHECKPOINT_TEXT_LENGTH} characters.`,
 };
 
 /**

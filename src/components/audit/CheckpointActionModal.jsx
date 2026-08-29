@@ -15,7 +15,9 @@ const VARIANT_CONFIG = {
   respond: {
     title: (checkpoint) => {
       const no = checkpoint?.serial_no ?? checkpoint?.serialNo ?? "";
-      return no ? `Checkpoint ${String(no).padStart(2, "0")}` : "Checkpoint";
+      return no
+        ? `Audit Observation ${String(no).padStart(2, "0")}`
+        : "Audit Observation";
     },
     successMessage: "Response submitted successfully",
     submit: respondToCheckpoint,
@@ -25,15 +27,15 @@ const VARIANT_CONFIG = {
   },
   closed: {
     title: () => "Mark as Closed",
-    successMessage: "Checkpoint marked as Closed successfully",
+    successMessage: "Audit Observation marked as Closed successfully",
     submit: (payload) => closeCheckpoint({ ...payload, action: "closed" }),
     outcomeStatus: "Closed",
     requiresClosureDate: true,
     allowFiles: true,
   },
   reopen: {
-    title: () => "Reopen Checkpoint",
-    successMessage: "Checkpoint reopened successfully",
+    title: () => "Reopen Audit Observation",
+    successMessage: "Audit Observation reopened successfully",
     submit: reopenCheckpoint,
     outcomeStatus: "Open",
     requiresClosureDate: false,
@@ -256,7 +258,9 @@ export default function CheckpointActionModal({
 
             <div className="flex flex-col gap-1.5">
               <p className={labelClass}>
-                {variant === "respond" ? "Checkpoint Description" : "Checkpoint"}
+                {variant === "respond"
+                  ? "Audit Observation Description"
+                  : "Audit Observation"}
               </p>
               <div className={readOnlyBoxClass}>
                 <p className="whitespace-pre-wrap">{description || "—"}</p>

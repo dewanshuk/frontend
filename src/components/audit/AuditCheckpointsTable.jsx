@@ -33,7 +33,6 @@ import {
 import CheckpointActionModal from "@/components/audit/CheckpointActionModal";
 import CheckpointHistoryDrawer from "@/components/audit/CheckpointHistoryDrawer";
 import {
-  deleteCheckpoint,
   downloadAuditCheckpointTemplate,
   getAuditCheckpoints,
   uploadAuditCheckpointTemplate,
@@ -108,9 +107,12 @@ export function AuditCheckpointsHeader({
   isSaving = false,
   isTemplateBusy = false,
   readOnly = false,
+  disabled = false,
 }) {
-  const auditDisplayId = audit?.display_audit_id || audit?.audit_id || "0001";
-  const actionsLocked = isSaving || isTemplateBusy;
+  // Only the reserved upload slug exists before the audit is first saved —
+  // it must never be shown as the business Audit ID.
+  const auditDisplayId = audit?.display_audit_id || audit?.audit_id || "";
+  const actionsLocked = isSaving || isTemplateBusy || disabled;
 
   return (
     <div className="mb-5 flex w-full min-w-0 flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -119,9 +121,11 @@ export function AuditCheckpointsHeader({
           <ChevronLeft className="size-4 shrink-0" strokeWidth={2} />
           Back
         </button>
-        <h1 className="text-2xl font-semibold tracking-[-0.48px] text-[#1e1e1e]">
-          Audit ID {auditDisplayId}
-        </h1>
+        {auditDisplayId ? (
+          <h1 className="text-2xl font-semibold tracking-[-0.48px] text-[#1e1e1e]">
+            Audit ID {auditDisplayId}
+          </h1>
+        ) : null}
         <AuditStatusBadge
           status={audit?.status || "Draft"}
           className="min-w-[112px] px-4 py-2 text-base"
@@ -389,6 +393,9 @@ export default function AuditCheckpointsTable({
   checkpoints: controlledCheckpoints,
   onCheckpointsChange,
   isSaving = false,
+  /** True while the audit ID/slug is not ready yet — disables actions without
+   * claiming a save is in progress (keeps "Saving..." accurate to real submits). */
+  disabled = false,
   /** When true (default), renders Back / Audit ID / action buttons above the table */
   showHeader = true,
   readOnly = false,
@@ -617,24 +624,15 @@ export default function AuditCheckpointsTable({
       return;
     }
 
-    const checkpointId = target?.checkpoint_id || target?.id || rowId;
-
-    try {
-      await deleteCheckpoint(checkpointId);
-      setRows((current) => {
-        if (current.length <= 1) return current;
-        const filtered = current
-          .filter(
-            (row) => row.id !== rowId && row.checkpoint_id !== rowId,
-          )
-          .map((row, index) => ({ ...row, serial_no: index + 1 }));
-        return filtered.length > 0 ? filtered : [createEmptyCheckpoint(1)];
-      });
-      onClearRowFieldError?.(rowId);
-      notify("Checkpoint deleted successfully.");
-    } catch (err) {
-      notify(err?.message || "Unable to delete checkpoint.", "error");
-    }
+    setRows((current) => {
+      if (current.length <= 1) return current;
+      const filtered = current
+        .filter((row) => row.id !== rowId && row.checkpoint_id !== rowId)
+        .map((row, index) => ({ ...row, serial_no: index + 1 }));
+      return filtered.length > 0 ? filtered : [createEmptyCheckpoint(1)];
+    });
+    onClearRowFieldError?.(rowId);
+    notify("Audit Observation deleted successfully.");
   };
 
   const handleDuplicateRow = (rowId) => {
@@ -789,7 +787,7 @@ const handleReferenceFileChange = (event) => {
 
 
   const handleDownloadTemplate = async () => {
-    if (readOnly || isSaving || templateBusyRef.current) return;
+    if (readOnly || isSaving || disabled || templateBusyRef.current) return;
     if (onDownloadTemplate) {
       onDownloadTemplate();
       return;
@@ -820,7 +818,7 @@ const handleReferenceFileChange = (event) => {
   };
 
   const handleUploadCheckpoints = () => {
-    if (readOnly || isSaving || templateBusyRef.current) return;
+    if (readOnly || isSaving || disabled || templateBusyRef.current) return;
     if (onUploadCheckpoints) {
       onUploadCheckpoints();
       return;
@@ -831,7 +829,7 @@ const handleReferenceFileChange = (event) => {
   const handleCheckpointFileChange = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (!file || readOnly || isSaving || templateBusyRef.current) return;
+    if (!file || readOnly || isSaving || disabled || templateBusyRef.current) return;
 
     const lower = String(file.name || "").toLowerCase();
     if (!lower.endsWith(".xlsx")) {
@@ -869,7 +867,7 @@ const handleReferenceFileChange = (event) => {
   };
 
   const handleSaveDraft = () => {
-    if (isSaving || isTemplateBusy) return;
+    if (isSaving || isTemplateBusy || disabled) return;
     if (onSaveDraft) {
       onSaveDraft();
       return;
@@ -878,7 +876,7 @@ const handleReferenceFileChange = (event) => {
   };
 
   const handlePublish = () => {
-    if (isSaving || isTemplateBusy) return;
+    if (isSaving || isTemplateBusy || disabled) return;
     if (onPublish) {
       onPublish();
       return;
@@ -887,7 +885,7 @@ const handleReferenceFileChange = (event) => {
   };
 
   const handleMarkAsClosed = () => {
-    if (isSaving || isTemplateBusy) return;
+    if (isSaving || isTemplateBusy || disabled) return;
     if (onMarkAsClosed) {
       onMarkAsClosed();
       return;
@@ -1350,6 +1348,7 @@ const handleReferenceFileChange = (event) => {
         isSaving={isSaving}
         isTemplateBusy={isTemplateBusy}
         readOnly={readOnly}
+        disabled={disabled}
       />
       {tableCard}
       {actionOverlays}
