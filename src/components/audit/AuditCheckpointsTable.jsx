@@ -4,6 +4,7 @@ import {
   ChevronDown,
   ChevronLeft,
   Download,
+  Filter,
   Link2,
   MoreHorizontal,
   Plus,
@@ -13,10 +14,14 @@ import {
 import { useNavigate } from "react-router-dom";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -214,9 +219,9 @@ const COL = {
   checkpoint: 260,
   criteria: 260,
   riskLevel: 140,
-  status: 168,
+  status: 200,
   reference: 240,
-  pendingAt: 120,
+  pendingAt: 150,
   plannedDate: 200,
   actualDate: 200,
   auditeeComments: 220,
@@ -354,6 +359,72 @@ function ReferenceFilesCell({ files = [], readOnly = false, onRemove }) {
   );
 }
 
+const STATUS_FILTER_OPTIONS = ["Draft", "In-Progress", "Completed"];
+const PENDING_AT_FILTER_OPTIONS = ["Auditee", "Auditor"];
+
+/**
+ * Icon-only multi-select filter, sat inline next to a column header label so it
+ * takes no extra header row / vertical space.
+ */
+function ColumnFilterMenu({ label, options, selected, onChange }) {
+  const active = selected.length > 0;
+  const toggle = (value) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((item) => item !== value)
+        : [...selected, value],
+    );
+  };
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={(event) => event.stopPropagation()}
+          className={cn(
+            "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors",
+            active
+              ? "text-[#2563eb]"
+              : "text-[#757575] hover:text-[#2563eb]",
+          )}
+          aria-label={`Filter ${label}`}
+        >
+          <Filter
+            className="size-3.5"
+            strokeWidth={2}
+            fill={active ? "currentColor" : "none"}
+          />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[160px]">
+        <DropdownMenuLabel className="font-normal text-[#757575]">
+          {label}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {options.map((option) => (
+          <DropdownMenuCheckboxItem
+            key={option}
+            checked={selected.includes(option)}
+            onSelect={(event) => event.preventDefault()}
+            onCheckedChange={() => toggle(option)}
+          >
+            {option}
+          </DropdownMenuCheckboxItem>
+        ))}
+        {active ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onChange([])}>
+              Clear
+            </DropdownMenuItem>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 function MenuItemWithTooltip({ disabled, disabledReason, children, onSelect }) {
   const item = (
     <DropdownMenuItem
@@ -414,6 +485,12 @@ export default function AuditCheckpointsTable({
   onSaveDraft,
   onPublish,
   onToast,
+  /**
+   * Draft checkpoints only exist in the payload — deleting one requires
+   * saving/publishing the audit with that row removed.
+   * (nextCheckpoints, "draft" | "publish") => Promise<boolean>
+   */
+  onDeleteCheckpoint,
 }) {
   const navigate = useNavigate();
   const [internalRows, setInternalRows] = useState([]);
@@ -433,8 +510,38 @@ export default function AuditCheckpointsTable({
     checkpoint: null,
     refreshKey: 0,
   });
+  const [deleteConfirm, setDeleteConfirm] = useState({
+    open: false,
+    rowId: null,
+  });
+  const [isDeleteSaving, setIsDeleteSaving] = useState(false);
   const isControlled = typeof onCheckpointsChange === "function";
   const rows = isControlled ? controlledCheckpoints || [] : internalRows;
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [riskFilter, setRiskFilter] = useState([]);
+  const [pendingAtFilter, setPendingAtFilter] = useState([]);
+
+  const getRowStatus = (row) =>
+    String(row?.status || row?.checkpoint_status || "").trim();
+  const getRowRisk = (row) => String(row?.risk_level || "").trim();
+  const getRowPendingAt = (row) => String(row?.pending_at || "").trim();
+
+  const filteredRows = rows.filter((row) => {
+    if (statusFilter.length > 0 && !statusFilter.includes(getRowStatus(row))) {
+      return false;
+    }
+    if (riskFilter.length > 0 && !riskFilter.includes(getRowRisk(row))) {
+      return false;
+    }
+    if (
+      pendingAtFilter.length > 0 &&
+      !pendingAtFilter.includes(getRowPendingAt(row))
+    ) {
+      return false;
+    }
+    return true;
+  });
+
   const role =
     viewerRole === "auditor" || viewerRole === "auditee"
       ? viewerRole
@@ -624,15 +731,15 @@ export default function AuditCheckpointsTable({
       return;
     }
 
-    setRows((current) => {
-      if (current.length <= 1) return current;
-      const filtered = current
-        .filter((row) => row.id !== rowId && row.checkpoint_id !== rowId)
-        .map((row, index) => ({ ...row, serial_no: index + 1 }));
-      return filtered.length > 0 ? filtered : [createEmptyCheckpoint(1)];
-    });
-    onClearRowFieldError?.(rowId);
-    notify("Audit Observation deleted successfully.");
+      setRows((current) => {
+        if (current.length <= 1) return current;
+        const filtered = current
+          .filter((row) => row.id !== rowId && row.checkpoint_id !== rowId)
+          .map((row, index) => ({ ...row, serial_no: index + 1 }));
+        return filtered.length > 0 ? filtered : [createEmptyCheckpoint(1)];
+      });
+      onClearRowFieldError?.(rowId);
+      notify("Audit Observation deleted successfully.");
   };
 
   const handleDuplicateRow = (rowId) => {
@@ -931,7 +1038,15 @@ const handleReferenceFileChange = (event) => {
                 className={`${thBase} text-center`}
                 style={widthStyle(COL.riskLevel)}
               >
-                Risk Level
+                <span className="inline-flex items-center gap-1">
+                  Risk Level
+                  <ColumnFilterMenu
+                    label="Risk Level"
+                    options={RISK_LEVEL_OPTIONS}
+                    selected={riskFilter}
+                    onChange={setRiskFilter}
+                  />
+                </span>
               </th>
               <th
                 className={`${thBase} pl-5 text-left`}
@@ -943,13 +1058,29 @@ const handleReferenceFileChange = (event) => {
                 className={`${thBase} text-left`}
                 style={widthStyle(COL.status)}
               >
-                Checkpoint Status
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                  Checkpoint Status
+                  <ColumnFilterMenu
+                    label="Checkpoint Status"
+                    options={STATUS_FILTER_OPTIONS}
+                    selected={statusFilter}
+                    onChange={setStatusFilter}
+                  />
+                </span>
               </th>
               <th
                 className={`${thBase} text-center`}
                 style={widthStyle(COL.pendingAt)}
               >
-                Pending at
+                <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                  Pending at
+                  <ColumnFilterMenu
+                    label="Pending at"
+                    options={PENDING_AT_FILTER_OPTIONS}
+                    selected={pendingAtFilter}
+                    onChange={setPendingAtFilter}
+                  />
+                </span>
               </th>
               <th
                 className={`${thBase} text-center leading-tight`}
@@ -985,8 +1116,20 @@ const handleReferenceFileChange = (event) => {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, rowIndex) => {
-              const isLastRow = rowIndex === rows.length - 1;
+            {filteredRows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={12}
+                  className={`${tdBase} py-10 text-center text-base text-[#b3b3b3]`}
+                >
+                  No checkpoints match the selected filters.
+                </td>
+              </tr>
+            ) : null}
+            {filteredRows.map((row) => {
+              const isLastRow =
+                row.id === rows[rows.length - 1]?.id &&
+                row.checkpoint_id === rows[rows.length - 1]?.checkpoint_id;
               const errors = rowErrors?.[row.id] || rowErrors?.[row.checkpoint_id] || {};
               const rowLocked = isCheckpointInProgress(row);
               const fieldsReadOnly = readOnly || rowLocked;

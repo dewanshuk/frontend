@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, Paperclip, Search, X } from "lucide-react";
 import { getOrchestrationItemDetail, getItemRevisions, getItemRevisionSnapshot } from "../../api/orchestration";
 import moment from "moment";
-import { IMAGE_EXTENSIONS, VIDEO_EXTENSIONS } from "../../constant";
 import { DATE_FORMAT_MOMENT } from "../../config";
 
 const statusStyles = {
@@ -32,68 +31,6 @@ const formatRevisionDate = (value) => {
   const m = moment(value);
   if (!m.isValid()) return value;
   return m.format(DATE_FORMAT_MOMENT).toUpperCase();
-};
-
-const getFileExtension = (fileName = "") => {
-  const normalizedName = String(fileName).toLowerCase();
-  const lastDotIndex = normalizedName.lastIndexOf(".");
-
-  return lastDotIndex >= 0 ? normalizedName.slice(lastDotIndex) : "";
-};
-
-const getEventFileType = (fileItem) => {
-  const fileType = String(fileItem?.file_type || "").toUpperCase();
-
-  if (fileType === "IMAGE") {
-    return "photo";
-  }
-
-  if (fileType === "VIDEO") {
-    return "video";
-  }
-
-  const fileName =
-    fileItem?.original_filename || fileItem?.name || fileItem?.file?.name || "";
-  const fileExtension = getFileExtension(fileName);
-
-  if (IMAGE_EXTENSIONS.includes(fileExtension)) {
-    return "photo";
-  }
-
-  if (VIDEO_EXTENSIONS.includes(fileExtension)) {
-    return "video";
-  }
-
-  return null;
-};
-
-const getEventMediaSummary = (files = []) => {
-  let photoCount = 0;
-  let videoCount = 0;
-
-  files.forEach((fileItem) => {
-    const fileCategory = getEventFileType(fileItem);
-
-    if (fileCategory === "photo") {
-      photoCount += 1;
-    }
-
-    if (fileCategory === "video") {
-      videoCount += 1;
-    }
-  });
-
-  const parts = [];
-
-  if (photoCount > 0) {
-    parts.push(`${photoCount} Photo${photoCount === 1 ? "" : "s"}`);
-  }
-
-  if (videoCount > 0) {
-    parts.push(`${videoCount} Video${videoCount === 1 ? "" : "s"}`);
-  }
-
-  return parts.length > 0 ? parts.join("; ") : "N/A";
 };
 
 const formatFileSize = (sizeInBytes) => {
@@ -326,9 +263,6 @@ const mapItemForDrawer = (item, fallbackItem, itemMetadata = null) => {
     fallbackItem?.uploaded_by ??
     fallbackItem?.created_by ??
     "N/A",
-  uploadedFilesSummary: getEventMediaSummary(
-    Array.isArray(item?.files) ? item.files : [],
-  ),
   replacesDocumentId:
     item?.replaces_document_id ??
     fallbackItem?.replaces_document_id ??
@@ -826,24 +760,43 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-[16px] font-semibold leading-6 text-[#262626]">
-                      Uploaded Files
-                    </p>
-                    <p
-                      className={`mt-1 text-[15px] leading-6 ${
-                        drawerItem.uploadedFilesSummary !== "N/A"
-                          ? "text-[#2563EB] underline underline-offset-2"
-                          : "text-[#262626]"
-                      }`}
-                    >
-                      {drawerItem.uploadedFilesSummary}
-                    </p>
-                  </div>
                   <Field label="Event Dates" value={drawerItem.eventDateRange} />
+                  <Field label="Applicability" value={drawerItem.applicability} />
                 </div>
 
-                <Field label="Applicability" value={drawerItem.applicability} />
+                <div>
+                  <p className="text-[16px] font-semibold leading-6 text-[#262626]">
+                    Uploaded Files
+                  </p>
+                  {drawerItem.files.length > 0 ? (
+                    <div className="mt-2 space-y-2">
+                      {drawerItem.files.map((fileItem, index) => {
+                        const fileName =
+                          fileItem?.original_filename ||
+                          fileItem?.name ||
+                          fileItem?.file?.name ||
+                          "File";
+                        return (
+                          <a
+                            key={fileItem.id || `${fileName}-${index}`}
+                            href={fileItem.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block break-all text-[15px] leading-6 text-[#2563EB]"
+                          >
+                            {fileName}
+                            <span className="ml-2 text-[15px] leading-6 text-[#2563EB]">
+                              ({formatFileSize(fileItem.size_bytes ?? fileItem.size ?? fileItem.file?.size)})
+                            </span>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-[15px] leading-6 text-[#262626]">N/A</p>
+                  )}
+                </div>
+
                 <Field label="Type" value={drawerItem.type} />
                 <Field label="Uploaded By" value={drawerItem.updatedBy} />
               </>
