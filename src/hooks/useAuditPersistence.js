@@ -39,7 +39,16 @@ export function useAuditPersistence({ audit, checkpoints, onError }) {
 
   const persistAudit = useCallback(
     async (action, options = {}) => {
-      const { externalLock = false } = options;
+      const {
+        externalLock = false,
+        // Explicit checkpoints list to persist instead of the hook's current
+        // `checkpoints` state — lets a caller (e.g. row delete) save/publish
+        // a payload that reflects an edit not yet committed to that state.
+        checkpoints: checkpointsOverride,
+        // Skip the post-success dashboard redirect (e.g. row delete should
+        // keep the user on the checkpoints page).
+        skipNavigate = false,
+      } = options;
       if (!audit) return false;
 
       // When the page already holds the lock (validation + persist), skip re-lock.
@@ -51,7 +60,9 @@ export function useAuditPersistence({ audit, checkpoints, onError }) {
       }
 
       try {
-        const populatedCheckpoints = getPopulatedCheckpoints(checkpoints);
+        const populatedCheckpoints = getPopulatedCheckpoints(
+          checkpointsOverride ?? checkpoints,
+        );
 
         // Publish requires at least one populated checkpoint (UI validates first).
         if (action === "publish" && populatedCheckpoints.length === 0) {
@@ -78,7 +89,7 @@ export function useAuditPersistence({ audit, checkpoints, onError }) {
           const closedOn = formatAuditApiDate(options?.closureDate);
           const body = closedOn ? { closure_date: closedOn } : {};
           await closeAudit(closeId, body);
-          navigate("/audit/dashboard");
+          if (!skipNavigate) navigate("/audit/dashboard");
           return true;
         }
 
@@ -106,7 +117,7 @@ export function useAuditPersistence({ audit, checkpoints, onError }) {
           await saveAuditDraft(slug, payload, { pkId });
         }
 
-        navigate("/audit/dashboard");
+        if (!skipNavigate) navigate("/audit/dashboard");
         return true;
       } catch (error) {
         const message =

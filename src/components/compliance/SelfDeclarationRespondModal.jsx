@@ -12,6 +12,7 @@ import { getSelfDeclaration, respondToComplianceRecord, closeComplianceRecord } 
 import ComplianceAttachmentChips from "@/components/compliance/ComplianceAttachmentChips"
 import ComplianceSimilarRequests from "@/components/compliance/ComplianceSimilarRequests"
 import { getConversationActorNameClass } from "@/components/compliance/complianceConversationViewUtils"
+import { getCoiFieldConfigBySubType } from "@/components/compliance/coiDeclarationConfig"
 
 const RESPONSE_HISTORY_TEXT_CLASS =
   "whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed"
@@ -100,6 +101,7 @@ export default function SelfDeclarationRespondModal({
 
   const displayRequestId = record?.id || recordId || "-"
   const declarationTypeLabel = formatDeclarationType(record?.declarationType)
+  const isCoiDeclaration = String(record?.declarationType || "").trim().toLowerCase() === "coi"
   const typeLabel = request?.type || "Self Declaration"
   const subTypeLabel =
     formatDeclarationType(record?.declarationType) !== "-"
@@ -240,6 +242,10 @@ export default function SelfDeclarationRespondModal({
                         .toUpperCase()
                       const files = Array.isArray(entry?.files) ? entry.files : []
                       const isInitialEntry = index === 0
+                      const coiFormData = entry?.data?.formData
+                      const coiFieldConfig = isCoiDeclaration
+                        ? getCoiFieldConfigBySubType(entry?.data?.subType || record?.subType)
+                        : null
                       const detailsText =
                         entry?.data?.description ||
                         entry?.data?.natureOfViolation ||
@@ -260,12 +266,25 @@ export default function SelfDeclarationRespondModal({
                                     <span className="font-semibold">Declaration Type: </span>
                                     <span>{declarationTypeLabel}</span>
                                   </div>
-                                  <div>
-                                    <div className="font-semibold">Details:</div>
-                                    <div className={`mt-1 ${RESPONSE_HISTORY_TEXT_CLASS}`}>
-                                      {detailsText || "-"}
+                                  {coiFieldConfig && coiFormData ? (
+                                    <div className="space-y-2">
+                                      {coiFieldConfig.map((field) => (
+                                        <div key={field.key}>
+                                          <span className="font-semibold">{field.label}: </span>
+                                          <span className={RESPONSE_HISTORY_TEXT_CLASS}>
+                                            {String(coiFormData?.[field.key] ?? "").trim() || "-"}
+                                          </span>
+                                        </div>
+                                      ))}
                                     </div>
-                                  </div>
+                                  ) : (
+                                    <div>
+                                      <div className="font-semibold">Details:</div>
+                                      <div className={`mt-1 ${RESPONSE_HISTORY_TEXT_CLASS}`}>
+                                        {detailsText || "-"}
+                                      </div>
+                                    </div>
+                                  )}
                                 </>
                               ) : (
                                 <div className={RESPONSE_HISTORY_TEXT_CLASS}>

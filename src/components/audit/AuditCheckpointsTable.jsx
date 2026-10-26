@@ -714,7 +714,14 @@ export default function AuditCheckpointsTable({
     ]);
   };
 
-  const handleDeleteRow = async (rowId) => {
+  const computeRowsAfterDelete = (current, rowId) => {
+    const filtered = current
+      .filter((row) => row.id !== rowId && row.checkpoint_id !== rowId)
+      .map((row, index) => ({ ...row, serial_no: index + 1 }));
+    return filtered.length > 0 ? filtered : [createEmptyCheckpoint(1)];
+  };
+
+  const handleDeleteRow = (rowId) => {
     if (readOnly) return;
 
     const target =
@@ -731,15 +738,41 @@ export default function AuditCheckpointsTable({
       return;
     }
 
-      setRows((current) => {
-        if (current.length <= 1) return current;
-        const filtered = current
-          .filter((row) => row.id !== rowId && row.checkpoint_id !== rowId)
-          .map((row, index) => ({ ...row, serial_no: index + 1 }));
-        return filtered.length > 0 ? filtered : [createEmptyCheckpoint(1)];
-      });
+    setDeleteConfirm({ open: true, rowId });
+  };
+
+  const closeDeleteConfirm = () => {
+    if (isDeleteSaving) return;
+    setDeleteConfirm({ open: false, rowId: null });
+  };
+
+  /**
+   * Deleting a row only exists in the local payload — persist it by reusing
+   * the existing Save as Draft / Publish flows with that row already removed.
+   */
+  const handleConfirmDelete = async (action) => {
+    const rowId = deleteConfirm.rowId;
+    if (!rowId) return;
+    const nextCheckpoints = computeRowsAfterDelete(rows, rowId);
+
+    if (!onDeleteCheckpoint) {
+      setRows(nextCheckpoints);
       onClearRowFieldError?.(rowId);
       notify("Audit Observation deleted successfully.");
+      setDeleteConfirm({ open: false, rowId: null });
+      return;
+    }
+
+    setIsDeleteSaving(true);
+    try {
+      const success = await onDeleteCheckpoint(nextCheckpoints, action);
+      if (success) {
+        onClearRowFieldError?.(rowId);
+        setDeleteConfirm({ open: false, rowId: null });
+      }
+    } finally {
+      setIsDeleteSaving(false);
+    }
   };
 
   const handleDuplicateRow = (rowId) => {
@@ -1450,6 +1483,66 @@ const handleReferenceFileChange = (event) => {
         refreshKey={historyDrawer.refreshKey}
         onToast={notify}
       />
+      <Dialog
+        open={deleteConfirm.open}
+        onOpenChange={(open) => {
+          if (!open) closeDeleteConfirm();
+        }}
+      >
+        <DialogContent
+          hideCloseButton
+          className="w-[min(420px,95vw)] max-w-[420px] rounded-2xl border-0 bg-white p-0 font-sans shadow-lg"
+        >
+          <div className="relative px-6 pb-6 pt-6">
+            <button
+              type="button"
+              onClick={closeDeleteConfirm}
+              disabled={isDeleteSaving}
+              className="absolute right-3 top-3 inline-flex size-8 items-center justify-center rounded-lg text-[#757575] transition hover:bg-[#f5f5f5] hover:text-[#1e1e1e] disabled:cursor-not-allowed disabled:opacity-60"
+              aria-label="Close"
+            >
+              <X className="size-4" strokeWidth={2} />
+            </button>
+
+            <DialogTitle className="pr-8 text-xl font-semibold tracking-[-0.48px] text-[#1e1e1e]">
+              Delete Audit Observation?
+            </DialogTitle>
+
+            <p className="mt-2 text-sm text-[#757575]">
+              Are you sure you want to delete this audit observation?
+            </p>
+
+            <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={closeDeleteConfirm}
+                disabled={isDeleteSaving}
+                className={backButtonClass}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmDelete("draft")}
+                disabled={isDeleteSaving}
+                className={primaryActionClass}
+                aria-busy={isDeleteSaving}
+              >
+                {isDeleteSaving ? "Saving..." : "Save as Draft"}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleConfirmDelete("publish")}
+                disabled={isDeleteSaving}
+                className={publishButtonClass}
+                aria-busy={isDeleteSaving}
+              >
+                {isDeleteSaving ? "Saving..." : "Publish"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 

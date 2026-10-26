@@ -110,3 +110,9 @@ export const buildCoiFormData = (row, fields) => {
 
 export const areCoiRowsValid = (rows, fields) =>
   rows.every((r) => fields.every((f) => !f.required || String(r[f.key] ?? "").trim()))
+
+/** Field config (labels/keys) for a given COI sub type, used to render submitted formData. */
+export const getCoiFieldConfigBySubType = (subType) => {
+  const index = COI_SUB_TYPES.indexOf(String(subType || "").toUpperCase())
+  return index >= 0 ? COI_FIELD_CONFIGS[index] : null
+}

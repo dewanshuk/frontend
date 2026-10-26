@@ -222,6 +222,66 @@ export default function AuditNew() {
     }
   };
 
+  /**
+   * Row delete must also be reflected in the backend, not just the UI —
+   * reuses the existing saveDraft/publish functions with the row already
+   * removed from the payload, and keeps the user on the checkpoints tab.
+   */
+  const handleDeleteCheckpoint = async (nextCheckpoints, action) => {
+    if (!hasAuditId) {
+      showToast(idError || "Audit ID is not ready yet.", "error");
+      return false;
+    }
+    if (!tryLock()) return false;
+    try {
+      if (action === "publish") {
+        const result = await validateAuditPublishFull(audit, nextCheckpoints);
+        if (!result.ok) {
+          setFieldErrors(result.detailErrors || {});
+          setCheckpointErrors(result.checkpointErrors || {});
+          setActiveTab(
+            resolvePublishFocusTab(result) === TAB_CHECKPOINTS
+              ? TAB_CHECKPOINTS
+              : TAB_DETAILS,
+          );
+          return false;
+        }
+        setFieldErrors({});
+        setCheckpointErrors({});
+        const success = await publish({
+          externalLock: true,
+          skipNavigate: true,
+          checkpoints: nextCheckpoints,
+        });
+        if (success) {
+          setCheckpoints(nextCheckpoints);
+          showToast("Audit published successfully.");
+        }
+        return success;
+      }
+
+      const details = await validateAuditDetailsForDraft(audit);
+      if (!details.ok) {
+        setFieldErrors(details.errors || {});
+        setActiveTab(TAB_DETAILS);
+        return false;
+      }
+      setFieldErrors({});
+      const success = await saveDraft({
+        externalLock: true,
+        skipNavigate: true,
+        checkpoints: nextCheckpoints,
+      });
+      if (success) {
+        setCheckpoints(nextCheckpoints);
+        showToast("Audit saved as draft.");
+      }
+      return success;
+    } finally {
+      unlock();
+    }
+  };
+
   const handleClose = () => {
     if (isSaving) return;
     if (!hasAuditId) {
@@ -519,6 +579,7 @@ export default function AuditNew() {
               onSaveDraft={handleSaveDraft}
               onPublish={handlePublish}
               onMarkAsClosed={handleClose}
+              onDeleteCheckpoint={handleDeleteCheckpoint}
             />
           </TabsContent>
         </Tabs>

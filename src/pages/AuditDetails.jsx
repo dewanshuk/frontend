@@ -219,6 +219,65 @@ export default function AuditDetails() {
     }
   };
 
+  /**
+   * Row delete must also be reflected in the backend, not just the UI —
+   * reuses the existing saveDraft/publish functions with the row already
+   * removed from the payload, and keeps the user on the checkpoints page.
+   */
+  const handleDeleteCheckpoint = async (nextCheckpoints, action) => {
+    if (!isEditMode) return false;
+    if (!tryLock()) return false;
+    try {
+      if (action === "publish") {
+        const result = await validateAuditPublishFull(audit, nextCheckpoints);
+        if (!result.ok) {
+          setFieldErrors(result.detailErrors || {});
+          setCheckpointErrors(result.checkpointErrors || {});
+          const focusTab = resolvePublishFocusTab(result);
+          setSearchParams(
+            buildSearchParams({
+              mode,
+              tab: focusTab === TAB_CHECKPOINTS ? TAB_CHECKPOINTS : TAB_DETAILS,
+            }),
+          );
+          return false;
+        }
+        setFieldErrors({});
+        setCheckpointErrors({});
+        const success = await publish({
+          externalLock: true,
+          skipNavigate: true,
+          checkpoints: nextCheckpoints,
+        });
+        if (success) {
+          setCheckpoints(nextCheckpoints);
+          showToast("Audit published successfully.");
+        }
+        return success;
+      }
+
+      const details = await validateAuditDetailsForDraft(audit);
+      if (!details.ok) {
+        setFieldErrors(details.errors || {});
+        setSearchParams(buildSearchParams({ mode, tab: TAB_DETAILS }));
+        return false;
+      }
+      setFieldErrors({});
+      const success = await saveDraft({
+        externalLock: true,
+        skipNavigate: true,
+        checkpoints: nextCheckpoints,
+      });
+      if (success) {
+        setCheckpoints(nextCheckpoints);
+        showToast("Audit saved as draft.");
+      }
+      return success;
+    } finally {
+      unlock();
+    }
+  };
+
   const handleClose = async () => {
     if (!isEditMode) return;
     if (!tryLock()) return;
@@ -360,6 +419,7 @@ export default function AuditDetails() {
               onSaveDraft={handleSaveDraft}
               onPublish={handlePublish}
               onMarkAsClosed={handleClose}
+              onDeleteCheckpoint={handleDeleteCheckpoint}
             />
           </TabsContent>
         </Tabs>

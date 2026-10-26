@@ -293,6 +293,8 @@ const mapItemForDrawer = (item, fallbackItem, itemMetadata = null) => {
   };
 };
 
+const FILES_PREVIEW_COUNT = 3;
+
 const getItemType = (src) =>
   src?.item_type ||
   (String(src?.document_type || "").toLowerCase() === "event" ? "event" : "document");
@@ -309,6 +311,7 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
   const [isRevisionMenuOpen, setIsRevisionMenuOpen] = useState(false);
   const [revisionSearch, setRevisionSearch] = useState("");
   const [selectedRevisionId, setSelectedRevisionId] = useState(null);
+  const [showAllFiles, setShowAllFiles] = useState(false);
   const revisionMenuRef = useRef(null);
 
   useEffect(() => {
@@ -430,6 +433,7 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
     setRevisionSearch("");
     setIsRevisionMenuOpen(false);
     setRevisionSnapshot(null);
+    setShowAllFiles(false);
 
     if (!revisionOptions || revisionOptions.length === 0) {
       setSelectedRevisionId(null);
@@ -770,7 +774,10 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
                   </p>
                   {drawerItem.files.length > 0 ? (
                     <div className="mt-2 space-y-2">
-                      {drawerItem.files.map((fileItem, index) => {
+                      {(showAllFiles
+                        ? drawerItem.files
+                        : drawerItem.files.slice(0, FILES_PREVIEW_COUNT)
+                      ).map((fileItem, index) => {
                         const fileName =
                           fileItem?.original_filename ||
                           fileItem?.name ||
@@ -791,6 +798,17 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
                           </a>
                         );
                       })}
+                      {drawerItem.files.length > FILES_PREVIEW_COUNT ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllFiles((current) => !current)}
+                          className="text-[15px] font-medium leading-6 text-[#52525B] hover:text-[#262626]"
+                        >
+                          {showAllFiles
+                            ? "Show less"
+                            : `Show more (${drawerItem.files.length - FILES_PREVIEW_COUNT})`}
+                        </button>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="mt-1 text-[15px] leading-6 text-[#262626]">N/A</p>
@@ -810,7 +828,10 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
                   </p>
                   {drawerItem.files.length > 0 ? (
                     <div className="mt-2 space-y-2">
-                      {drawerItem.files.map((fileItem) => (
+                      {(showAllFiles
+                        ? drawerItem.files
+                        : drawerItem.files.slice(0, FILES_PREVIEW_COUNT)
+                      ).map((fileItem) => (
                         <a
                           key={fileItem.id || fileItem.name}
                           href={fileItem.file_url}
@@ -822,6 +843,17 @@ export default function OrchestrationViewDrawer({ isOpen, item, onClose }) {
                           <span className="ml-2 text-[15px] leading-6 text-[#2563EB]">({formatFileSize(fileItem.size_bytes ?? fileItem.size ?? fileItem.file?.size)})</span>
                         </a>
                       ))}
+                      {drawerItem.files.length > FILES_PREVIEW_COUNT ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowAllFiles((current) => !current)}
+                          className="text-[15px] font-medium leading-6 text-[#52525B] hover:text-[#262626]"
+                        >
+                          {showAllFiles
+                            ? "Show less"
+                            : `Show more (${drawerItem.files.length - FILES_PREVIEW_COUNT})`}
+                        </button>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="mt-1 text-[15px] leading-6 text-[#262626]">N/A</p>
